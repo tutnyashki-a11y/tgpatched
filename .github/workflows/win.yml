@@ -52,9 +52,10 @@ jobs:
 
     strategy:
       matrix:
-        # Порт v2: собираем только x64 (стандартный генератор) — приватная
-        # квота Actions ограничена, артефакт нужен один. Для других
-        # конфигураций вернуть исходный список:
+        # Порт v2: собираем только x64, генератор Ninja Multi-Config —
+        # VS-генератор на текущих раннерах исчерпывает память на длинной
+        # сборке (C1060 даже при --parallel 2). Для других конфигураций
+        # вернуть исходный список:
         #   arch: [x64_x86, x64, arm64]
         #   qt: ["", qt6]
         #   generator: ["", "Ninja Multi-Config"]
@@ -65,7 +66,7 @@ jobs:
         #       qt: qt6
         arch: [x64]
         qt: [""]
-        generator: [""]
+        generator: ["Ninja Multi-Config"]
 
     env:
       UPLOAD_ARTIFACT: "true"
@@ -137,20 +138,21 @@ jobs:
           nuget sources Disable -Name "Microsoft Visual Studio Offline Packages"
           nuget sources Add -Source https://api.nuget.org/v3/index.json & exit 0
 
-      - name: ThirdParty cache.
+      # Порт v2: явные restore/save вместо actions/cache@v6 — save-always
+      # на v6 кэш не сохранил ни разу, а сохранить Libraries нужно даже
+      # при провале сборки (2+ часа работы).
+      - name: ThirdParty cache (restore).
         id: cache-third-party
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v4
         with:
-          save-always: true
           path: ${{ env.TBUILD }}\ThirdParty
           key: ${{ runner.OS }}-${{ runner.arch }}-third-party-${{ env.CACHE_KEY }}
           restore-keys: ${{ runner.OS }}-${{ runner.arch }}-third-party-
 
-      - name: Libraries cache.
+      - name: Libraries cache (restore).
         id: cache-libs
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v4
         with:
-          save-always: true
           path: |
             ${{ env.LibrariesPath }}\*
             !${{ env.LibrariesPath }}\cache_keys
@@ -160,11 +162,10 @@ jobs:
           key: ${{ runner.OS }}-${{ matrix.arch }}-libs-v2-${{ env.CACHE_KEY }}
           restore-keys: ${{ runner.OS }}-${{ matrix.arch }}-libs-v2-
 
-      - name: Qt cache.
+      - name: Qt cache (restore).
         id: cache-qt
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v4
         with:
-          save-always: true
           path: |
             ${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
@@ -247,6 +248,37 @@ jobs:
           # Порт v2: --parallel 2 — на раннере 4 ядра / 16 ГБ RAM безлимитная
           # параллельность кладёт MSVC (C1060 out of heap space).
           cmake --build ..\out --config Debug --parallel 2
+
+      - name: ThirdParty cache (save).
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: ${{ runner.OS }}-${{ runner.arch }}-third-party-${{ env.CACHE_KEY }}
+
+      - name: Libraries cache (save).
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\*
+            !${{ env.LibrariesPath }}\cache_keys
+            !${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\*
+            !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ runner.OS }}-${{ matrix.arch }}-libs-v2-${{ env.CACHE_KEY }}
+
+      - name: Qt cache (save).
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ runner.OS }}-${{ matrix.arch }}-${{ matrix.qt || 'qt' }}-${{ env.CACHE_KEY }}
 
       - name: Move artifact.
         if: (env.UPLOAD_ARTIFACT == 'true') || (github.ref == 'refs/heads/nightly')
