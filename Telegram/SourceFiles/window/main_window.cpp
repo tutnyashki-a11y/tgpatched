@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "core/workdir_profile.h"
 #include "window/main_window.h"
 
 #include "api/api_updates.h"
@@ -903,7 +904,7 @@ void MainWindow::updateTitle() {
 		? TitleFromSeparateSharedMedia(settings, session->windowId())
 		: QString();
 	if (!separateSharedMediaTitle.isEmpty()) {
-		setTitle(separateSharedMediaTitle + suffix);
+		setTitle(separateSharedMediaTitle + suffix + Workdir::TitleSuffix());
 		return;
 	}
 	const auto key = (session && !settings.hideChatName)
@@ -911,7 +912,7 @@ void MainWindow::updateTitle() {
 		: Dialogs::Key();
 	const auto thread = key ? key.thread() : nullptr;
 	if (!thread) {
-		setTitle((user.isEmpty() ? u"64Gram"_q : user) + added + suffix);
+		setTitle((user.isEmpty() ? u"64Gram"_q : user) + added + suffix + Workdir::TitleSuffix());
 		return;
 	}
 	const auto history = thread->owningHistory();
@@ -931,7 +932,7 @@ void MainWindow::updateTitle() {
 		: !added.isEmpty()
 		? u" \u2013"_q
 		: QString();
-	setTitle(primary + middle + added + suffix);
+	setTitle(primary + middle + added + suffix + Workdir::TitleSuffix());
 }
 
 QRect MainWindow::computeDesktopRect() const {

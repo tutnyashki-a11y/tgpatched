@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "core/workdir_profile.h"
 #include "main/main_account.h"
 
 #include "base/platform/base_platform_info.h"
@@ -428,8 +429,14 @@ void Account::startMtp(std::unique_ptr<MTP::Config> config) {
 
 	auto fields = base::take(_mtpFields);
 	fields.config = std::move(config);
-	fields.deviceModel = Platform::DeviceModelPretty();
-	fields.systemVersion = Platform::SystemVersionPretty();
+	// Порт v2: подписанный запуск может переопределить отпечаток устройства
+	// (device.txt из workdir) — аккаунт выглядит консистентно.
+	fields.deviceModel = Workdir::DeviceModel().isEmpty()
+		? Platform::DeviceModelPretty()
+		: Workdir::DeviceModel();
+	fields.systemVersion = Workdir::SystemVersion().isEmpty()
+		? Platform::SystemVersionPretty()
+		: Workdir::SystemVersion();
 	_mtp = std::make_unique<MTP::Instance>(
 		MTP::Instance::Mode::Normal,
 		std::move(fields));

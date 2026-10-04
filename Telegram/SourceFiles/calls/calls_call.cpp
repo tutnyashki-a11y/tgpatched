@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "core/workdir_profile.h"
 #include "calls/calls_call.h"
 
 #include "apiwrap.h"
@@ -353,8 +354,9 @@ void Call::startOutgoing() {
 		MTP_int(base::RandomValue<int32>()),
 		MTP_bytes(_gaHash),
 		MTP_phoneCallProtocol(
-			MTP_flags(MTPDphoneCallProtocol::Flag::f_udp_p2p
-				| MTPDphoneCallProtocol::Flag::f_udp_reflector),
+			// Порт v2: без f_udp_p2p — звонки только через сервер Telegram
+			// (рефлектор идёт через прокси; P2P мог бы засветить реальный IP).
+			MTP_flags(MTPDphoneCallProtocol::Flag::f_udp_reflector),
 			MTP_int(kMinLayer),
 			MTP_int(tgcalls::Meta::MaxLayer()),
 			MTP_vector(CollectVersionsForApi()))
@@ -487,8 +489,9 @@ void Call::actuallyAnswer() {
 		MTP_inputPhoneCall(MTP_long(_id), MTP_long(_accessHash)),
 		MTP_bytes(_gb),
 		MTP_phoneCallProtocol(
-			MTP_flags(MTPDphoneCallProtocol::Flag::f_udp_p2p
-				| MTPDphoneCallProtocol::Flag::f_udp_reflector),
+			// Порт v2: без f_udp_p2p — звонки только через сервер Telegram
+			// (рефлектор идёт через прокси; P2P мог бы засветить реальный IP).
+			MTP_flags(MTPDphoneCallProtocol::Flag::f_udp_reflector),
 			MTP_int(kMinLayer),
 			MTP_int(tgcalls::Meta::MaxLayer()),
 			MTP_vector(CollectVersionsForApi()))
@@ -1019,8 +1022,9 @@ void Call::confirmAcceptedCall(const MTPDphoneCallAccepted &call) {
 		MTP_bytes(_ga),
 		MTP_long(_keyFingerprint),
 		MTP_phoneCallProtocol(
-			MTP_flags(MTPDphoneCallProtocol::Flag::f_udp_p2p
-				| MTPDphoneCallProtocol::Flag::f_udp_reflector),
+			// Порт v2: без f_udp_p2p — звонки только через сервер Telegram
+			// (рефлектор идёт через прокси; P2P мог бы засветить реальный IP).
+			MTP_flags(MTPDphoneCallProtocol::Flag::f_udp_reflector),
 			MTP_int(kMinLayer),
 			MTP_int(tgcalls::Meta::MaxLayer()),
 			MTP_vector(CollectVersionsForApi()))
@@ -1135,7 +1139,7 @@ void Call::createAndStartController(const MTPDphoneCall &call) {
 				= serverConfig.callConnectTimeoutMs / 1000.,
 			.receiveTimeout = serverConfig.callPacketTimeoutMs / 1000.,
 			.dataSaving = tgcalls::DataSaving::Never,
-			.enableP2P = call.is_p2p_allowed(),
+			.enableP2P = false, // Порт v2: P2P всегда выключен (анти-засвет)
 			.enableAEC = false,
 			.enableNS = true,
 			.enableAGC = true,

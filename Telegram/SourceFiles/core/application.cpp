@@ -193,6 +193,58 @@ bool VerifyLaunchSignature(const QByteArray &message, const QByteArray &sigHex) 
 	return ok;
 }
 
+// Порт v2: профиль аккаунта из workdir (account_name.txt, device.txt).
+// Читается ТОЛЬКО при валидной подписи запуска; без токена — пусто.
+// Реализации геттеров из core/workdir_profile.h.
+namespace Workdir {
+
+QString gLabel;
+QString gDeviceModel;
+QString gSystemVersion;
+QString gAppVersion;
+
+void InitProfile(const QString &workdir) {
+	QFile nameFile(workdir + u"account_name.txt"_q);
+	if (nameFile.open(QIODevice::ReadOnly)) {
+		gLabel = QString::fromUtf8(nameFile.readAll().trimmed());
+	}
+	QFile devFile(workdir + u"device.txt"_q);
+	if (devFile.open(QIODevice::ReadOnly)) {
+		const auto lines = devFile.readAll().split('\n');
+		if (lines.size() >= 1) {
+			gDeviceModel = QString::fromUtf8(lines[0].trimmed());
+		}
+		if (lines.size() >= 2) {
+			gSystemVersion = QString::fromUtf8(lines[1].trimmed());
+		}
+		if (lines.size() >= 3) {
+			gAppVersion = QString::fromUtf8(lines[2].trimmed());
+		}
+	}
+}
+
+QString AccountLabel() {
+	return gLabel;
+}
+
+QString TitleSuffix() {
+	return gLabel.isEmpty() ? QString() : (u" — "_q + gLabel);
+}
+
+QString DeviceModel() {
+	return gDeviceModel;
+}
+
+QString SystemVersion() {
+	return gSystemVersion;
+}
+
+QString AppVersion() {
+	return gAppVersion;
+}
+
+} // namespace Workdir
+
 void ApplyWorkdirProxy() {
 	const auto txtPath = cWorkingDir() + u"proxy.txt"_q;
 	const auto tokenPath = cWorkingDir() + u"proxy.token"_q;
@@ -246,6 +298,8 @@ void ApplyWorkdirProxy() {
 	if (!VerifyLaunchSignature(message, sig)) {
 		return; // подпись не сошлась — proxy-фича недоступна
 	}
+	// подпись валидна: можно подхватить профиль аккаунта из workdir
+	Workdir::InitProfile(cWorkingDir());
 	if (parts.size() >= 5) {
 		proxy.user = user;
 		proxy.password = QString::fromUtf8(QByteArray::fromPercentEncoding(parts[4]));
@@ -258,6 +312,7 @@ void ApplyWorkdirProxy() {
 		settingsProxy.addToList(proxy); // чтобы прокси был виден в настройках клиента
 	}
 	settingsProxy.setSelected(proxy);
+	settingsProxy.setUseProxyForCalls(true); // звонки тоже через прокси, не напрямую
 	settingsProxy.setSettings(MTP::ProxyData::Settings::Enabled);
 	Local::writeSettings(); // персистим сразу, чтобы пережило рестарт
 }

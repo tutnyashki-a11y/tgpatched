@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "core/workdir_profile.h"
 #include "base/options.h"
 #include "mtproto/session_private.h"
 
@@ -685,7 +686,9 @@ void SessionPrivate::tryToSend() {
 		const auto systemVersion = (_currentDcType == DcType::Cdn)
 			? "n/a"
 			: _instance->systemVersion();
-		const auto appVersion = ComputeAppVersion();
+			const auto appVersion = Workdir::AppVersion().isEmpty()
+				? ComputeAppVersion()
+				: Workdir::AppVersion();
 		const auto proxyType = _options->proxy.type;
 		const auto mtprotoProxy = (proxyType == ProxyData::Type::Mtproto)
 			|| (proxyType == ProxyData::Type::Web);

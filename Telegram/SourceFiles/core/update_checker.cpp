@@ -85,7 +85,10 @@ constexpr auto kFlatpakUpdated = "/app/.updated"_cs;
 #ifdef TDESKTOP_DISABLE_AUTOUPDATE
 bool UpdaterIsDisabled = true;
 #else // TDESKTOP_DISABLE_AUTOUPDATE
-bool UpdaterIsDisabled = false;
+// Порт v2 (Менеджер аккаунтов): автообновления выключены ВСЕГДА —
+// обновление патченного клиента только ручной заменой exe, иначе
+// обновление затрёт патч и автопрокси.
+bool UpdaterIsDisabled = true;
 #endif // TDESKTOP_DISABLE_AUTOUPDATE
 
 std::weak_ptr<Updater> UpdaterInstance;
