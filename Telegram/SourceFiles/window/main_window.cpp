@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "base/timer.h"
 #include "core/workdir_profile.h"
 #include "window/main_window.h"
 
@@ -574,6 +575,19 @@ void MainWindow::init() {
 
 	updateTitle();
 	updateWindowIcon();
+
+	// Порт v2: опрос состояния сети (раз в 5 сек) — обновляет заголовок
+	// ("(без сети)") и пишет workdir/status.txt для менеджера.
+	if (Workdir::Gated()) {
+		const auto account = &this->account();
+		const auto check = [=] {
+			if (Workdir::UpdateConnectionState(account->mtp().dcstate())) {
+				updateTitle();
+			}
+		};
+		lifetime().make_state<base::Timer>([check] { check(); })->callEach(5000);
+		check();
+	}
 }
 
 void MainWindow::handleStateChanged(Qt::WindowState state) {

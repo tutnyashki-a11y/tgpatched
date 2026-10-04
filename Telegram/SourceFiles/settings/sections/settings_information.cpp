@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "core/workdir_profile.h"
 #include "settings/sections/settings_information.h"
 
 #include "dialogs/dialogs_inner_widget.h" // kOptionCtrlClickChatNewWindow.
@@ -1191,7 +1192,7 @@ void AccountsList::rebuild() {
 		std::max(1, count - premiumLimit));
 
 	_addAccount->toggle(
-		(count < ::Main::Domain::kMaxAccounts),
+		!Workdir::Gated() && (count < ::Main::Domain::kMaxAccounts),
 		anim::type::instant);
 
 	_reorder->start();

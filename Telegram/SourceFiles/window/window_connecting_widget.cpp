@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "core/workdir_profile.h"
 #include "window/window_connecting_widget.h"
 
 #include "ui/widgets/buttons.h"
@@ -506,9 +507,11 @@ ConnectionState::Widget::Widget(
 	_proxyIcon = Ui::CreateChild<ProxyIcon>(this);
 	_progress = Ui::CreateChild<Progress>(this);
 
-	addClickHandler([=] {
-		Ui::show(ProxiesBoxController::CreateOwningBox(account));
-	});
+	if (!Workdir::Gated()) {
+		addClickHandler([=] {
+			Ui::show(ProxiesBoxController::CreateOwningBox(account));
+		});
+	}
 
 	_progress->animationStepRequests(
 	) | rpl::on_next([=] {

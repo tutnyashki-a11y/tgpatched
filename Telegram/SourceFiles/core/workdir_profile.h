@@ -7,23 +7,41 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include <cstdint>
 #include <QString>
 
 // Порт v2 (Менеджер аккаунтов): профиль запуска из workdir.
 // Заполняется в core/application.cpp (ApplyWorkdirProxy) ТОЛЬКО после
 // проверки Ed25519-подписи запуска; без валидного токена все геттеры
-// возвращают пустые строки, и клиент работает со своими реальными данными.
+// возвращают пустые строки / Gated() == false, и клиент работает
+// как обычный Telegram.
 namespace Workdir {
 
 // Имя аккаунта (account_name.txt) — дописывается к заголовку окна.
 [[nodiscard]] QString AccountLabel();
 
-// Суффикс заголовка окна: " — <имя аккаунта>" либо пустая строка.
+// Суффикс заголовка: " — <имя аккаунта>" + " (без сети)" при отсутствии
+// соединения. Пустая строка, если нечего показывать.
 [[nodiscard]] QString TitleSuffix();
 
 // Переопределение отпечатка устройства (device.txt: model / system / app).
 [[nodiscard]] QString DeviceModel();
 [[nodiscard]] QString SystemVersion();
 [[nodiscard]] QString AppVersion();
+
+// Лицензионный запуск (подпись проверена) — гейт для блокировок UI
+// (настройки прокси, добавление/удаление аккаунтов).
+[[nodiscard]] bool Gated();
+
+// Состояние сети последнего опроса (true = не подключено).
+[[nodiscard]] bool Offline();
+void SetOffline(bool offline);
+
+// Путь workdir процесса (пуст вне лицензионного запуска).
+[[nodiscard]] QString WorkdirPath();
+
+// Обновить состояние сети из dcstate(). Пишет status.txt в workdir при
+// изменении. Возвращает true, если состояние изменилось (обновить заголовок).
+[[nodiscard]] bool UpdateConnectionState(int32_t dcState);
 
 } // namespace Workdir

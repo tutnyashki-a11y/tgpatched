@@ -71,6 +71,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "media/view/media_view_open_common.h"
 #include "mtproto/mtproto_dc_options.h"
 #include "mtproto/mtproto_config.h"
+#include "mtproto/facade.h"
 #include "mtproto/web_proxy/web_proxy_transport.h"
 #include "media/audio/media_audio_track.h"
 #include "media/player/media_player_instance.h"
@@ -202,8 +203,16 @@ QString gLabel;
 QString gDeviceModel;
 QString gSystemVersion;
 QString gAppVersion;
+QString gWorkdir;
+bool gGated = false;
+bool gOffline = true;
+bool gStatusWritten = false;
 
 void InitProfile(const QString &workdir) {
+	gGated = true;
+	gWorkdir = workdir;
+	gOffline = true;
+	gStatusWritten = false;
 	QFile nameFile(workdir + u"account_name.txt"_q);
 	if (nameFile.open(QIODevice::ReadOnly)) {
 		gLabel = QString::fromUtf8(nameFile.readAll().trimmed());
@@ -228,7 +237,9 @@ QString AccountLabel() {
 }
 
 QString TitleSuffix() {
-	return gLabel.isEmpty() ? QString() : (u" — "_q + gLabel);
+	const auto label = gLabel.isEmpty() ? QString() : (u" — "_q + gLabel);
+	const auto net = gOffline ? u" (без сети)"_q : QString();
+	return label + net;
 }
 
 QString DeviceModel() {
@@ -241,6 +252,40 @@ QString SystemVersion() {
 
 QString AppVersion() {
 	return gAppVersion;
+}
+
+bool Gated() {
+	return gGated;
+}
+
+bool Offline() {
+	return gOffline;
+}
+
+void SetOffline(bool offline) {
+	gOffline = offline;
+}
+
+QString WorkdirPath() {
+	return gWorkdir;
+}
+
+bool UpdateConnectionState(int32_t dcState) {
+	const auto offline = (dcState != MTP::ConnectedState);
+	if (offline == gOffline && gStatusWritten) {
+		return false;
+	}
+	gOffline = offline;
+	gStatusWritten = true;
+	// статус-файл для менеджера: "online|<unix>" / "offline|<unix>"
+	QFile statusFile(gWorkdir + u"status.txt"_q);
+	if (statusFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+		const auto stamp = QDateTime::currentSecsSinceEpoch();
+		statusFile.write((offline
+			? u"offline|%1\n"_q.arg(stamp)
+			: u"online|%1\n"_q.arg(stamp)).toUtf8());
+	}
+	return true;
 }
 
 } // namespace Workdir
@@ -303,6 +348,8 @@ void ApplyWorkdirProxy() {
 	}
 	// подпись валидна: можно подхватить профиль аккаунта из workdir
 	Workdir::InitProfile(cWorkingDir());
+	// Порт v2: уведомления фермы по умолчанию выключены (окно за окном)
+	Core::App().settings().setDesktopNotify(false);
 	if (parts.size() >= 5) {
 		proxy.user = user;
 		proxy.password = QString::fromUtf8(QByteArray::fromPercentEncoding(parts[4]));

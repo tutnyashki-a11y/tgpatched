@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "core/workdir_profile.h"
 #include "intro/intro_widget.h"
 
 #include "intro/intro_start.h"
@@ -508,7 +509,9 @@ void Widget::showResetButton() {
 		_resetAccount->entity()->setClickedCallback([this] { resetAccount(); });
 		updateControlsGeometry();
 	}
-	_resetAccount->show(anim::type::normal);
+	if (!Workdir::Gated()) {
+		_resetAccount->show(anim::type::normal);
+	}
 	if (_changeLanguage) {
 		_changeLanguage->hide(anim::type::normal);
 	}
@@ -544,6 +547,10 @@ void Widget::acceptTerms(Fn<void()> callback) {
 }
 
 void Widget::resetAccount() {
+	// Порт v2: удаление аккаунта из клиента запрещено
+	if (Workdir::Gated()) {
+		return;
+	}
 	if (_resetRequest || !_api) {
 		return;
 	}

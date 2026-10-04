@@ -141,6 +141,7 @@ jobs:
         id: cache-third-party
         uses: actions/cache@v6
         with:
+          save-always: true
           path: ${{ env.TBUILD }}\ThirdParty
           key: ${{ runner.OS }}-${{ runner.arch }}-third-party-${{ env.CACHE_KEY }}
           restore-keys: ${{ runner.OS }}-${{ runner.arch }}-third-party-
@@ -149,6 +150,7 @@ jobs:
         id: cache-libs
         uses: actions/cache@v6
         with:
+          save-always: true
           path: |
             ${{ env.LibrariesPath }}\*
             !${{ env.LibrariesPath }}\cache_keys
@@ -162,6 +164,7 @@ jobs:
         id: cache-qt
         uses: actions/cache@v6
         with:
+          save-always: true
           path: |
             ${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
@@ -241,7 +244,9 @@ jobs:
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF ^
           %TDESKTOP_BUILD_DEFINE%
 
-          cmake --build ..\out --config Debug --parallel
+          # Порт v2: --parallel 2 — на раннере 4 ядра / 16 ГБ RAM безлимитная
+          # параллельность кладёт MSVC (C1060 out of heap space).
+          cmake --build ..\out --config Debug --parallel 2
 
       - name: Move artifact.
         if: (env.UPLOAD_ARTIFACT == 'true') || (github.ref == 'refs/heads/nightly')

@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "core/workdir_profile.h"
 #include "settings/sections/settings_main.h"
 
 #include "settings/settings_common_session.h"
@@ -669,7 +670,7 @@ rpl::producer<QString> Main::title() {
 
 void Main::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
 	const auto &list = Core::App().domain().accounts();
-	if (list.size() < Core::App().domain().maxAccounts()) {
+	if (list.size() < Core::App().domain().maxAccounts() && !Workdir::Gated()) {
 		addAction(tr::lng_menu_add_account(tr::now), [=] {
 			Core::App().setActivePrimaryWindow(&controller()->window());
 			Core::App().domain().addActivated(MTP::Environment{});

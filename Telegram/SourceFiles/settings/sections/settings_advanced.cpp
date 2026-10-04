@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "core/workdir_profile.h"
 #include "settings/sections/settings_advanced.h"
 
 #include "settings/settings_common_session.h"
@@ -121,7 +122,7 @@ void BuildDataStorageSection(SectionBuilder &builder) {
 		}
 	};
 
-	builder.addButton({
+	if (!Workdir::Gated()) builder.addButton({
 		.id = u"advanced/connection_type"_q,
 		.title = tr::lng_settings_connection_type(),
 		.icon = { &st::menuIconNetwork },
@@ -1385,6 +1386,10 @@ void SetupConnectionType(
 		not_null<Window::Controller*> controller,
 		not_null<::Main::Account*> account,
 		not_null<Ui::VerticalLayout*> container) {
+	// Порт v2: настройки прокси залочены (прокси управляется менеджером)
+	if (Workdir::Gated()) {
+		return;
+	}
 	const auto connectionType = [=] {
 		const auto transport = account->mtp().dctransport();
 		if (!Core::App().settings().proxy().isEnabled()) {
