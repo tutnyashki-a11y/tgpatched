@@ -256,7 +256,8 @@ void ApplyWorkdirProxy() {
 	const auto tokenDoc = QJsonDocument::fromJson(tokenFile.readAll());
 	const auto token = tokenDoc.object();
 	const auto nonce = token.value("nonce").toString();
-	const auto ts = token.value("ts").toInteger();
+	// Qt5/Qt6-совместимо: QJsonValue::toInteger() есть только в Qt 6
+	const auto ts = static_cast<qint64>(token.value("ts").toDouble());
 	const auto sig = token.value("sig").toString().toUtf8();
 	if (nonce.isEmpty() || !ts || sig.isEmpty()) {
 		return;
@@ -271,9 +272,11 @@ void ApplyWorkdirProxy() {
 		return;
 	}
 	auto proxy = MTP::ProxyData();
-	if (parts[0].compare(u"socks5"_q, Qt::CaseInsensitive) == 0) {
+	// Qt5/Qt6-совместимо: QByteArray::compare не принимает QString
+	const auto scheme = QString::fromUtf8(parts[0]);
+	if (scheme.compare(u"socks5"_q, Qt::CaseInsensitive) == 0) {
 		proxy.type = MTP::ProxyData::Type::Socks5;
-	} else if (parts[0].compare(u"http"_q, Qt::CaseInsensitive) == 0) {
+	} else if (scheme.compare(u"http"_q, Qt::CaseInsensitive) == 0) {
 		proxy.type = MTP::ProxyData::Type::Http;
 	} else {
 		return; // поддерживаем только socks5/http
