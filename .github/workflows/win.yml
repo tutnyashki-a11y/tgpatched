@@ -52,14 +52,20 @@ jobs:
 
     strategy:
       matrix:
-        arch: [x64_x86, x64, arm64]
-        qt: ["", qt6]
-        generator: ["", "Ninja Multi-Config"]
-        exclude:
-          - arch: arm64
-            qt: ""
-          - arch: x64_x86
-            qt: qt6
+        # Порт v2: собираем только x64 (стандартный генератор) — приватная
+        # квота Actions ограничена, артефакт нужен один. Для других
+        # конфигураций вернуть исходный список:
+        #   arch: [x64_x86, x64, arm64]
+        #   qt: ["", qt6]
+        #   generator: ["", "Ninja Multi-Config"]
+        #   exclude:
+        #     - arch: arm64
+        #       qt: ""
+        #     - arch: x64_x86
+        #       qt: qt6
+        arch: [x64]
+        qt: [""]
+        generator: [""]
 
     env:
       UPLOAD_ARTIFACT: "true"
