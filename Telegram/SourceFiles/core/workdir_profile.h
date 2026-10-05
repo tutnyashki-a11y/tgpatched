@@ -33,6 +33,10 @@ namespace Workdir {
 // (настройки прокси, добавление/удаление аккаунтов).
 [[nodiscard]] bool Gated();
 
+// Инициализация профиля из workdir. Вызывается ТОЛЬКО из application.cpp
+// после проверки Ed25519-подписи запуска.
+void InitProfile(const QString &workdir);
+
 // Состояние сети последнего опроса (true = не подключено).
 [[nodiscard]] bool Offline();
 void SetOffline(bool offline);
