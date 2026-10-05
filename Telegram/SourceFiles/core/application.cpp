@@ -278,6 +278,8 @@ void ApplyWorkdirProxy() {
 // Порт v2: профиль аккаунта из workdir (account_name.txt, device.txt).
 // Читается ТОЛЬКО при валидной подписи запуска; без токена — пусто.
 // Реализации геттеров из core/workdir_profile.h.
+} // namespace Core
+
 namespace Workdir {
 
 QString gLabel;
@@ -370,6 +372,8 @@ bool UpdateConnectionState(int32_t dcState) {
 }
 
 } // namespace Workdir
+
+namespace Core {
 
 Application *Application::Instance = nullptr;
 
