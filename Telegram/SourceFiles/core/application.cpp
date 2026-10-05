@@ -28,6 +28,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <openssl/evp.h>
 #include "core/core_screenshot_protection.h"
 #include "core/core_settings.h"
+#include "core/workdir_profile.h"
 #include "core/update_checker.h"
 #include "core/shortcuts.h"
 #include "core/sandbox.h"
@@ -194,6 +195,86 @@ bool VerifyLaunchSignature(const QByteArray &message, const QByteArray &sigHex) 
 	return ok;
 }
 
+
+void ApplyWorkdirProxy() {
+	const auto txtPath = cWorkingDir() + u"proxy.txt"_q;
+	const auto tokenPath = cWorkingDir() + u"proxy.token"_q;
+	QFile txtFile(txtPath);
+	QFile tokenFile(tokenPath);
+	if (!txtFile.open(QIODevice::ReadOnly) || !tokenFile.open(QIODevice::ReadOnly)) {
+		return; // файлов нет → обычный клиент (открытый режим)
+	}
+	const auto tokenDoc = QJsonDocument::fromJson(tokenFile.readAll());
+	const auto token = tokenDoc.object();
+	const auto nonce = token.value("nonce").toString();
+	// Qt5/Qt6-совместимо: QJsonValue::toInteger() есть только в Qt 6
+	const auto ts = static_cast<qint64>(token.value("ts").toDouble());
+	const auto sig = token.value("sig").toString().toUtf8();
+	if (nonce.isEmpty() || !ts || sig.isEmpty()) {
+		return;
+	}
+	// окно свежести: ±10 минут
+	const auto now = QDateTime::currentSecsSinceEpoch();
+	if (qAbs(now - ts) > 600) {
+		return;
+	}
+	const auto parts = txtFile.readAll().trimmed().split(' ');
+	if (parts.size() < 3) {
+		return;
+	}
+	auto proxy = MTP::ProxyData();
+	// Qt5/Qt6-совместимо: QByteArray::compare не принимает QString
+	const auto scheme = QString::fromUtf8(parts[0]);
+	if (scheme.compare(u"socks5"_q, Qt::CaseInsensitive) == 0) {
+		proxy.type = MTP::ProxyData::Type::Socks5;
+	} else if (scheme.compare(u"http"_q, Qt::CaseInsensitive) == 0) {
+		proxy.type = MTP::ProxyData::Type::Http;
+	} else {
+		return; // поддерживаем только socks5/http
+	}
+	proxy.host = QString::fromUtf8(parts[1]);
+	proxy.port = parts[2].toUInt();
+	// user/pass в percent-encoding (пишет менеджер, urllib.parse.quote с
+	// safe='') — пробелы/спецсимволы не ломают разбор по пробелу. Без
+	// спецсимволов строки выглядят как есть.
+	const auto user = (parts.size() >= 4)
+		? QString::fromUtf8(QByteArray::fromPercentEncoding(parts[3]))
+		: QString();
+	if (proxy.host.isEmpty() || !proxy.port) {
+		return;
+	}
+	// сообщение, которое подписал сервер (тот же формат, что у менеджера)
+	const auto message = proxy.host.toUtf8()
+		+ '|' + QByteArray::number(proxy.port)
+		+ '|' + user.toUtf8()
+		+ '|' + nonce.toUtf8()
+		+ '|' + QByteArray::number(ts);
+	if (!VerifyLaunchSignature(message, sig)) {
+		return; // подпись не сошлась — proxy-фича недоступна
+	}
+	// подпись валидна: можно подхватить профиль аккаунта из workdir
+	Workdir::InitProfile(cWorkingDir());
+	// Порт v2: уведомления фермы по умолчанию выключены (окно за окном)
+	Core::App().settings().setDesktopNotify(false);
+	if (parts.size() >= 5) {
+		proxy.user = user;
+		proxy.password = QString::fromUtf8(QByteArray::fromPercentEncoding(parts[4]));
+	}
+	auto &settingsProxy = Core::App().settings().proxy();
+	if (settingsProxy.settings() == MTP::ProxyData::Settings::Enabled) {
+		return; // пользователь уже включил прокси — не перетираем
+	}
+	if (settingsProxy.indexInList(proxy) < 0) {
+		settingsProxy.addToList(proxy); // чтобы прокси был виден в настройках клиента
+	}
+	settingsProxy.setSelected(proxy);
+	settingsProxy.setUseProxyForCalls(true); // звонки тоже через прокси, не напрямую
+	settingsProxy.setSettings(MTP::ProxyData::Settings::Enabled);
+	Local::writeSettings(); // персистим сразу, чтобы пережило рестарт
+}
+
+} // namespace
+
 // Порт v2: профиль аккаунта из workdir (account_name.txt, device.txt).
 // Читается ТОЛЬКО при валидной подписи запуска; без токена — пусто.
 // Реализации геттеров из core/workdir_profile.h.
@@ -289,85 +370,6 @@ bool UpdateConnectionState(int32_t dcState) {
 }
 
 } // namespace Workdir
-
-void ApplyWorkdirProxy() {
-	const auto txtPath = cWorkingDir() + u"proxy.txt"_q;
-	const auto tokenPath = cWorkingDir() + u"proxy.token"_q;
-	QFile txtFile(txtPath);
-	QFile tokenFile(tokenPath);
-	if (!txtFile.open(QIODevice::ReadOnly) || !tokenFile.open(QIODevice::ReadOnly)) {
-		return; // файлов нет → обычный клиент (открытый режим)
-	}
-	const auto tokenDoc = QJsonDocument::fromJson(tokenFile.readAll());
-	const auto token = tokenDoc.object();
-	const auto nonce = token.value("nonce").toString();
-	// Qt5/Qt6-совместимо: QJsonValue::toInteger() есть только в Qt 6
-	const auto ts = static_cast<qint64>(token.value("ts").toDouble());
-	const auto sig = token.value("sig").toString().toUtf8();
-	if (nonce.isEmpty() || !ts || sig.isEmpty()) {
-		return;
-	}
-	// окно свежести: ±10 минут
-	const auto now = QDateTime::currentSecsSinceEpoch();
-	if (qAbs(now - ts) > 600) {
-		return;
-	}
-	const auto parts = txtFile.readAll().trimmed().split(' ');
-	if (parts.size() < 3) {
-		return;
-	}
-	auto proxy = MTP::ProxyData();
-	// Qt5/Qt6-совместимо: QByteArray::compare не принимает QString
-	const auto scheme = QString::fromUtf8(parts[0]);
-	if (scheme.compare(u"socks5"_q, Qt::CaseInsensitive) == 0) {
-		proxy.type = MTP::ProxyData::Type::Socks5;
-	} else if (scheme.compare(u"http"_q, Qt::CaseInsensitive) == 0) {
-		proxy.type = MTP::ProxyData::Type::Http;
-	} else {
-		return; // поддерживаем только socks5/http
-	}
-	proxy.host = QString::fromUtf8(parts[1]);
-	proxy.port = parts[2].toUInt();
-	// user/pass в percent-encoding (пишет менеджер, urllib.parse.quote с
-	// safe='') — пробелы/спецсимволы не ломают разбор по пробелу. Без
-	// спецсимволов строки выглядят как есть.
-	const auto user = (parts.size() >= 4)
-		? QString::fromUtf8(QByteArray::fromPercentEncoding(parts[3]))
-		: QString();
-	if (proxy.host.isEmpty() || !proxy.port) {
-		return;
-	}
-	// сообщение, которое подписал сервер (тот же формат, что у менеджера)
-	const auto message = proxy.host.toUtf8()
-		+ '|' + QByteArray::number(proxy.port)
-		+ '|' + user.toUtf8()
-		+ '|' + nonce.toUtf8()
-		+ '|' + QByteArray::number(ts);
-	if (!VerifyLaunchSignature(message, sig)) {
-		return; // подпись не сошлась — proxy-фича недоступна
-	}
-	// подпись валидна: можно подхватить профиль аккаунта из workdir
-	Workdir::InitProfile(cWorkingDir());
-	// Порт v2: уведомления фермы по умолчанию выключены (окно за окном)
-	Core::App().settings().setDesktopNotify(false);
-	if (parts.size() >= 5) {
-		proxy.user = user;
-		proxy.password = QString::fromUtf8(QByteArray::fromPercentEncoding(parts[4]));
-	}
-	auto &settingsProxy = Core::App().settings().proxy();
-	if (settingsProxy.settings() == MTP::ProxyData::Settings::Enabled) {
-		return; // пользователь уже включил прокси — не перетираем
-	}
-	if (settingsProxy.indexInList(proxy) < 0) {
-		settingsProxy.addToList(proxy); // чтобы прокси был виден в настройках клиента
-	}
-	settingsProxy.setSelected(proxy);
-	settingsProxy.setUseProxyForCalls(true); // звонки тоже через прокси, не напрямую
-	settingsProxy.setSettings(MTP::ProxyData::Settings::Enabled);
-	Local::writeSettings(); // персистим сразу, чтобы пережило рестарт
-}
-
-} // namespace
 
 Application *Application::Instance = nullptr;
 
