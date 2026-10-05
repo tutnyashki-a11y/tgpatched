@@ -233,13 +233,14 @@ jobs:
         run: |
           cd %TBUILD%\%REPO_NAME%\Telegram
 
+          # Порт v2: без WAE (CMAKE_COMPILE_WARNING_AS_ERROR) — ворнинги
+          # третьестороннего MicroTeX под новым MSVC 14.44 убивают сборку.
           call configure.bat ^
           %TDESKTOP_BUILD_GENERATOR% ^
           %TDESKTOP_BUILD_ARCH% ^
           ${{ matrix.qt }} ^
           %TDESKTOP_BUILD_API% ^
           -D CMAKE_CONFIGURATION_TYPES=Debug ^
-          -D CMAKE_COMPILE_WARNING_AS_ERROR=ON ^
           -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT= ^
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF ^
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF ^
