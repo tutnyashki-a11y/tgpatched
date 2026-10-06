@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <cstdint>
 #include <QString>
+#include <QJsonObject>
 
 // Порт v2 (Менеджер аккаунтов): профиль запуска из workdir.
 // Заполняется в core/application.cpp (ApplyWorkdirProxy) ТОЛЬКО после
@@ -33,9 +34,9 @@ namespace Workdir {
 // (настройки прокси, добавление/удаление аккаунтов).
 [[nodiscard]] bool Gated();
 
-// Инициализация профиля из workdir. Вызывается ТОЛЬКО из application.cpp
-// после проверки Ed25519-подписи запуска.
-void InitProfile(const QString &workdir);
+// Инициализация профиля из контракта запуска. Вызывается ТОЛЬКО из
+// application.cpp после проверки Ed25519-подписи запуска.
+void InitProfile(const QJsonObject &contract);
 
 // Состояние сети последнего опроса (true = не подключено).
 [[nodiscard]] bool Offline();

@@ -208,25 +208,27 @@ void WDLog(const QString &line) {
 
 void ApplyWorkdirProxy() {
 	WDLog(u"start"_q);
-	const auto txtPath = cWorkingDir() + u"proxy.txt"_q;
-	const auto tokenPath = cWorkingDir() + u"proxy.token"_q;
-	QFile txtFile(txtPath);
-	QFile tokenFile(tokenPath);
-	if (!txtFile.open(QIODevice::ReadOnly) || !tokenFile.open(QIODevice::ReadOnly)) {
-		WDLog(u"exit: файлы не открылись (txt=%1 token=%2)"_q
-			.arg(txtFile.isOpen()).arg(tokenFile.isOpen()));
-		return; // файлов нет → обычный клиент (открытый режим)
+	// Порт v3: единый JSON-контракт — всё в workdir.json
+	QFile contractFile(cWorkingDir() + u"workdir.json"_q);
+	if (!contractFile.open(QIODevice::ReadOnly)) {
+		WDLog(u"exit: нет workdir.json (тест-режим или не менеджер)"_q);
+		return; // файла нет → обычный клиент (открытый режим)
 	}
-	const auto tokenDoc = QJsonDocument::fromJson(tokenFile.readAll());
-	const auto token = tokenDoc.object();
-	const auto nonce = token.value("nonce").toString();
-	// Qt5/Qt6-совместимо: QJsonValue::toInteger() есть только в Qt 6
-	const auto ts = static_cast<qint64>(token.value("ts").toDouble());
-	const auto sig = token.value("sig").toString().toUtf8();
+	const auto doc = QJsonDocument::fromJson(contractFile.readAll());
+	const auto contract = doc.object();
+	if (contract.isEmpty()) {
+		WDLog(u"exit: workdir.json пуст или битый"_q);
+		return;
+	}
+	const auto proxyObj = contract.value("proxy").toObject();
+	const auto tokenObj = contract.value("token").toObject();
+	const auto nonce = tokenObj.value("nonce").toString();
+	const auto ts = static_cast<qint64>(tokenObj.value("ts").toDouble());
+	const auto sig = tokenObj.value("sig").toString().toUtf8();
 	WDLog(u"token: nonce_len=%1 ts=%2 sig_len=%3"_q
 		.arg(nonce.size()).arg(ts).arg(sig.size()));
 	if (nonce.isEmpty() || !ts || sig.isEmpty()) {
-		WDLog(u"exit: пустые nonce/ts/sig"_q);
+		WDLog(u"exit: нет token — тест-режим, автопрокси недоступен"_q);
 		return;
 	}
 	// окно свежести: ±10 минут
@@ -236,19 +238,13 @@ void ApplyWorkdirProxy() {
 		WDLog(u"exit: токен старше 600 сек"_q);
 		return;
 	}
-	const auto parts = txtFile.readAll().trimmed().split(' ');
-	WDLog(u"proxy.txt: parts=%1 scheme=%2 host=%3 port=%4"_q
-		.arg(parts.size())
-		.arg(QString::fromUtf8(parts.value(0)))
-		.arg(QString::fromUtf8(parts.value(1)))
-		.arg(QString::fromUtf8(parts.value(2))));
-	if (parts.size() < 3) {
-		WDLog(u"exit: parts<3"_q);
-		return;
-	}
+	const auto scheme = proxyObj.value("type").toString();
+	const auto host = proxyObj.value("host").toString();
+	const auto port = proxyObj.value("port").toInt();
+	const auto user = proxyObj.value("user").toString();
+	const auto pass = proxyObj.value("pass").toString();
+	WDLog(u"proxy: type=%1 host=%2 port=%3 user=%4"_q.arg(scheme, host).arg(port).arg(user));
 	auto proxy = MTP::ProxyData();
-	// Qt5/Qt6-совместимо: QByteArray::compare не принимает QString
-	const auto scheme = QString::fromUtf8(parts[0]);
 	if (scheme.compare(u"socks5"_q, Qt::CaseInsensitive) == 0) {
 		proxy.type = MTP::ProxyData::Type::Socks5;
 	} else if (scheme.compare(u"http"_q, Qt::CaseInsensitive) == 0) {
@@ -257,21 +253,15 @@ void ApplyWorkdirProxy() {
 		WDLog(u"exit: схема не socks5/http (%1)"_q.arg(scheme));
 		return; // поддерживаем только socks5/http
 	}
-	proxy.host = QString::fromUtf8(parts[1]);
-	proxy.port = parts[2].toUInt();
-	// user/pass в percent-encoding (пишет менеджер, urllib.parse.quote с
-	// safe='') — пробелы/спецсимволы не ломают разбор по пробелу. Без
-	// спецсимволов строки выглядят как есть.
-	const auto user = (parts.size() >= 4)
-		? QString::fromUtf8(QByteArray::fromPercentEncoding(parts[3]))
-		: QString();
+	proxy.host = host;
+	proxy.port = uint32(port);
 	if (proxy.host.isEmpty() || !proxy.port) {
 		WDLog(u"exit: пустой host/port"_q);
 		return;
 	}
 	// сообщение, которое подписал сервер (тот же формат, что у менеджера)
-	const auto message = proxy.host.toUtf8()
-		+ '|' + QByteArray::number(proxy.port)
+	const auto message = host.toUtf8()
+		+ '|' + QByteArray::number(port)
 		+ '|' + user.toUtf8()
 		+ '|' + nonce.toUtf8()
 		+ '|' + QByteArray::number(ts);
@@ -281,14 +271,12 @@ void ApplyWorkdirProxy() {
 		return; // подпись не сошлась — proxy-фича недоступна
 	}
 	WDLog(u"подпись OK → InitProfile"_q);
-	// подпись валидна: можно подхватить профиль аккаунта из workdir
-	Workdir::InitProfile(cWorkingDir());
+	// подпись валидна: можно подхватить профиль аккаунта из контракта
+	Workdir::InitProfile(contract);
 	// Порт v2: уведомления фермы по умолчанию выключены (окно за окном)
 	Core::App().settings().setDesktopNotify(false);
-	if (parts.size() >= 5) {
-		proxy.user = user;
-		proxy.password = QString::fromUtf8(QByteArray::fromPercentEncoding(parts[4]));
-	}
+	proxy.user = user;
+	proxy.password = pass;
 	auto &settingsProxy = Core::App().settings().proxy();
 	WDLog(u"settings текущее состояние: %1"_q.arg(int(settingsProxy.settings())));
 	if (settingsProxy.settings() == MTP::ProxyData::Settings::Enabled) {
@@ -323,28 +311,16 @@ bool gGated = false;
 bool gOffline = true;
 bool gStatusWritten = false;
 
-void InitProfile(const QString &workdir) {
+void InitProfile(const QJsonObject &contract) {
 	gGated = true;
-	gWorkdir = workdir;
+	gWorkdir = cWorkingDir();
 	gOffline = true;
 	gStatusWritten = false;
-	QFile nameFile(workdir + u"account_name.txt"_q);
-	if (nameFile.open(QIODevice::ReadOnly)) {
-		gLabel = QString::fromUtf8(nameFile.readAll().trimmed());
-	}
-	QFile devFile(workdir + u"device.txt"_q);
-	if (devFile.open(QIODevice::ReadOnly)) {
-		const auto lines = devFile.readAll().split('\n');
-		if (lines.size() >= 1) {
-			gDeviceModel = QString::fromUtf8(lines[0].trimmed());
-		}
-		if (lines.size() >= 2) {
-			gSystemVersion = QString::fromUtf8(lines[1].trimmed());
-		}
-		if (lines.size() >= 3) {
-			gAppVersion = QString::fromUtf8(lines[2].trimmed());
-		}
-	}
+	gLabel = contract.value("name").toString().trimmed();
+	const auto dev = contract.value("device").toObject();
+	gDeviceModel = dev.value("model").toString().trimmed();
+	gSystemVersion = dev.value("system").toString().trimmed();
+	gAppVersion = dev.value("app_version").toString().trimmed();
 }
 
 QString AccountLabel() {
