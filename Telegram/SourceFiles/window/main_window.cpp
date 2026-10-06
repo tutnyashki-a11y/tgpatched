@@ -579,9 +579,13 @@ void MainWindow::init() {
 	// Порт v2: опрос состояния сети (раз в 5 сек) — обновляет заголовок
 	// ("(без сети)") и пишет workdir/status.txt для менеджера.
 	if (Workdir::Gated()) {
-		const auto account = &this->account();
 		const auto check = [=] {
-			if (Workdir::UpdateConnectionState(account->mtp().dcstate())) {
+			// у окна без аккаунта (экран входа) нет mtp — пропускаем тик
+			const auto id = this->id();
+			if (!id.account) {
+				return;
+			}
+			if (Workdir::UpdateConnectionState(id.account->mtp().dcstate())) {
 				updateTitle();
 			}
 		};
