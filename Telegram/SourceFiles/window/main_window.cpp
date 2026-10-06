@@ -926,7 +926,7 @@ void MainWindow::updateTitle() {
 		: Dialogs::Key();
 	const auto thread = key ? key.thread() : nullptr;
 	if (!thread) {
-		setTitle((user.isEmpty() ? u"64Gram"_q : user) + added + suffix + Workdir::TitleSuffix());
+		setTitle((user.isEmpty() ? u"CyberGram"_q : user) + added + suffix + Workdir::TitleSuffix());
 		return;
 	}
 	const auto history = thread->owningHistory();
