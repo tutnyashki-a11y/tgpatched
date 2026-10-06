@@ -204,6 +204,11 @@ Instance::~Instance() {
 void Instance::startOutgoingCall(
 		not_null<UserData*> user,
 		StartOutgoingCallArgs args) {
+	// Порт v4: звонки в Gated-режиме запрещены — UDP к рефлекторам Telegram
+	// идёт напрямую и светит реальный IP. Исходящие не стартуют, входящие игнорируются.
+	if (Workdir::Gated()) {
+		return;
+	}
 	if (activateCurrentCall()
 		|| (!args.isConfirmed && activateUnconfirmedCall(user))) {
 		return;
@@ -423,14 +428,14 @@ void Instance::destroyCall(not_null<Call*> call) {
 }
 
 void Instance::createCall(
-	// Порт v4: звонки в Gated-режиме запрещены — UDP к рефлекторам Telegram
-	// идёт напрямую и светит реальный IP. Исходящие не стартуют, входящие игнорируются.
-	if (Workdir::Gated()) {
-		return;
-	}
 		not_null<UserData*> user,
 		CallType type,
 		StartOutgoingCallArgs args) {
+	// Порт v4: общая воронка — исходящие (через startOutgoingCall) и входящие
+	// (из handleCallUpdate). В Gated-режиме звонков нет вообще.
+	if (Workdir::Gated()) {
+		return;
+	}
 	struct Performer final {
 		explicit Performer(Fn<void(bool, bool, const Performer &)> callback)
 		: callback(std::move(callback)) {
