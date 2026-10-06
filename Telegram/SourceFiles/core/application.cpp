@@ -279,10 +279,9 @@ void ApplyWorkdirProxy() {
 	proxy.password = pass;
 	auto &settingsProxy = Core::App().settings().proxy();
 	WDLog(u"settings текущее состояние: %1"_q.arg(int(settingsProxy.settings())));
-	if (settingsProxy.settings() == MTP::ProxyData::Settings::Enabled) {
-		WDLog(u"exit: прокси уже включён пользователем — не перетираем"_q);
-		return; // пользователь уже включил прокси — не перетираем
-	}
+	// К3: в Gated-режиме НЕ выходим на Enabled — прокси управляется менеджером,
+	// и смена прокси аккаунта обязана применяться при следующем запуске.
+	// (Старый ранний выход блокировал смену прокси аккаунта навсегда.)
 	if (settingsProxy.indexInList(proxy) < 0) {
 		settingsProxy.addToList(proxy); // чтобы прокси был виден в настройках клиента
 	}

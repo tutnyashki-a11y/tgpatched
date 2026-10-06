@@ -354,8 +354,10 @@ void Call::startOutgoing() {
 		MTP_int(base::RandomValue<int32>()),
 		MTP_bytes(_gaHash),
 		MTP_phoneCallProtocol(
-			// Порт v2: без f_udp_p2p — звонки только через сервер Telegram
-			// (рефлектор идёт через прокси; P2P мог бы засветить реальный IP).
+			// Порт v2: без f_udp_p2p — собеседник не увидит реальный IP.
+			// ВАЖНО: UDP к рефлекторам Telegram при этом идёт НАПРЯМУЮ
+			// (supportsCalls()==false в 64Gram), поэтому звонки в Gated-режиме
+			// запрещены целиком (calls_instance.cpp::createCall).
 			MTP_flags(MTPDphoneCallProtocol::Flag::f_udp_reflector),
 			MTP_int(kMinLayer),
 			MTP_int(tgcalls::Meta::MaxLayer()),
@@ -489,8 +491,10 @@ void Call::actuallyAnswer() {
 		MTP_inputPhoneCall(MTP_long(_id), MTP_long(_accessHash)),
 		MTP_bytes(_gb),
 		MTP_phoneCallProtocol(
-			// Порт v2: без f_udp_p2p — звонки только через сервер Telegram
-			// (рефлектор идёт через прокси; P2P мог бы засветить реальный IP).
+			// Порт v2: без f_udp_p2p — собеседник не увидит реальный IP.
+			// ВАЖНО: UDP к рефлекторам Telegram при этом идёт НАПРЯМУЮ
+			// (supportsCalls()==false в 64Gram), поэтому звонки в Gated-режиме
+			// запрещены целиком (calls_instance.cpp::createCall).
 			MTP_flags(MTPDphoneCallProtocol::Flag::f_udp_reflector),
 			MTP_int(kMinLayer),
 			MTP_int(tgcalls::Meta::MaxLayer()),
@@ -1022,8 +1026,10 @@ void Call::confirmAcceptedCall(const MTPDphoneCallAccepted &call) {
 		MTP_bytes(_ga),
 		MTP_long(_keyFingerprint),
 		MTP_phoneCallProtocol(
-			// Порт v2: без f_udp_p2p — звонки только через сервер Telegram
-			// (рефлектор идёт через прокси; P2P мог бы засветить реальный IP).
+			// Порт v2: без f_udp_p2p — собеседник не увидит реальный IP.
+			// ВАЖНО: UDP к рефлекторам Telegram при этом идёт НАПРЯМУЮ
+			// (supportsCalls()==false в 64Gram), поэтому звонки в Gated-режиме
+			// запрещены целиком (calls_instance.cpp::createCall).
 			MTP_flags(MTPDphoneCallProtocol::Flag::f_udp_reflector),
 			MTP_int(kMinLayer),
 			MTP_int(tgcalls::Meta::MaxLayer()),

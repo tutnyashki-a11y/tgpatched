@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "core/workdir_profile.h"
 #include "boxes/connection_box.h"
 
 #include "ui/boxes/confirm_box.h"
@@ -1876,6 +1877,10 @@ void ProxiesBoxController::ShowApplyConfirmation(
 		Window::SessionController *controller,
 		Type type,
 		const QMap<QString, QString> &fields) {
+	// Порт v4: tg://socks / tg://proxy не подменяют прокси в Gated-режиме
+	if (Workdir::Gated()) {
+		return;
+	}
 	const auto proxy = ProxyDataFromFields(type, fields);
 	if (!proxy) {
 		const auto status = proxy.status();
@@ -2613,6 +2618,10 @@ void ProxiesBoxController::share(const ProxyData &proxy, bool qr) {
 void ProxiesBoxController::Show(
 		not_null<Window::SessionController*> controller,
 		const QString &highlightId) {
+	// Порт v4: настройки прокси управляются менеджером (Gated)
+	if (Workdir::Gated()) {
+		return;
+	}
 	controller->show(
 		CreateOwningBox(&controller->session().account(), highlightId));
 }

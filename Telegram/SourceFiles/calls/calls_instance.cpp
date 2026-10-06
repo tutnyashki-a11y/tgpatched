@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "core/workdir_profile.h"
 #include "calls/calls_instance.h"
 
 #include "calls/calls_call.h"
@@ -422,6 +423,11 @@ void Instance::destroyCall(not_null<Call*> call) {
 }
 
 void Instance::createCall(
+	// Порт v4: звонки в Gated-режиме запрещены — UDP к рефлекторам Telegram
+	// идёт напрямую и светит реальный IP. Исходящие не стартуют, входящие игнорируются.
+	if (Workdir::Gated()) {
+		return;
+	}
 		not_null<UserData*> user,
 		CallType type,
 		StartOutgoingCallArgs args) {
