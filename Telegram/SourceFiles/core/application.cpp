@@ -186,10 +186,10 @@ bool VerifyLaunchSignature(const QByteArray &message, const QByteArray &sigHex) 
 		&& EVP_DigestVerifyInit(ctx, nullptr, nullptr, nullptr, key) == 1
 		&& EVP_DigestVerify(
 			ctx,
-			reinterpret_cast<const unsigned char*>(message.constData()),
-			message.size(),
 			reinterpret_cast<const unsigned char*>(sig.constData()),
-			sig.size()) == 1;
+			sig.size(),
+			reinterpret_cast<const unsigned char*>(message.constData()),
+			message.size()) == 1;
 	EVP_MD_CTX_free(ctx);
 	EVP_PKEY_free(key);
 	return ok;
