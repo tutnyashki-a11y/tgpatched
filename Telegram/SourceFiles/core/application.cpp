@@ -196,12 +196,25 @@ bool VerifyLaunchSignature(const QByteArray &message, const QByteArray &sigHex) 
 }
 
 
+// Трассировка ApplyWorkdirProxy: каждый шаг пишется в workdir/proxy_debug.txt.
+// Временный инструмент отладки — показывает точное место раннего выхода.
+void WDLog(const QString &line) {
+	QFile f(cWorkingDir() + u"proxy_debug.txt"_q);
+	if (f.open(QIODevice::Append)) {
+		f.write((QDateTime::currentDateTime().toString(u"HH:mm:ss "_q)
+			+ line + u"\n"_q).toUtf8());
+	}
+}
+
 void ApplyWorkdirProxy() {
+	WDLog(u"start"_q);
 	const auto txtPath = cWorkingDir() + u"proxy.txt"_q;
 	const auto tokenPath = cWorkingDir() + u"proxy.token"_q;
 	QFile txtFile(txtPath);
 	QFile tokenFile(tokenPath);
 	if (!txtFile.open(QIODevice::ReadOnly) || !tokenFile.open(QIODevice::ReadOnly)) {
+		WDLog(u"exit: файлы не открылись (txt=%1 token=%2)"_q
+			.arg(txtFile.isOpen()).arg(tokenFile.isOpen()));
 		return; // файлов нет → обычный клиент (открытый режим)
 	}
 	const auto tokenDoc = QJsonDocument::fromJson(tokenFile.readAll());
@@ -210,16 +223,27 @@ void ApplyWorkdirProxy() {
 	// Qt5/Qt6-совместимо: QJsonValue::toInteger() есть только в Qt 6
 	const auto ts = static_cast<qint64>(token.value("ts").toDouble());
 	const auto sig = token.value("sig").toString().toUtf8();
+	WDLog(u"token: nonce_len=%1 ts=%2 sig_len=%3"_q
+		.arg(nonce.size()).arg(ts).arg(sig.size()));
 	if (nonce.isEmpty() || !ts || sig.isEmpty()) {
+		WDLog(u"exit: пустые nonce/ts/sig"_q);
 		return;
 	}
 	// окно свежести: ±10 минут
 	const auto now = QDateTime::currentSecsSinceEpoch();
+	WDLog(u"freshness: now=%1 ts=%2 delta=%3"_q.arg(now).arg(ts).arg(qAbs(now - ts)));
 	if (qAbs(now - ts) > 600) {
+		WDLog(u"exit: токен старше 600 сек"_q);
 		return;
 	}
 	const auto parts = txtFile.readAll().trimmed().split(' ');
+	WDLog(u"proxy.txt: parts=%1 scheme=%2 host=%3 port=%4"_q
+		.arg(parts.size())
+		.arg(QString::fromUtf8(parts.value(0)))
+		.arg(QString::fromUtf8(parts.value(1)))
+		.arg(QString::fromUtf8(parts.value(2))));
 	if (parts.size() < 3) {
+		WDLog(u"exit: parts<3"_q);
 		return;
 	}
 	auto proxy = MTP::ProxyData();
@@ -230,6 +254,7 @@ void ApplyWorkdirProxy() {
 	} else if (scheme.compare(u"http"_q, Qt::CaseInsensitive) == 0) {
 		proxy.type = MTP::ProxyData::Type::Http;
 	} else {
+		WDLog(u"exit: схема не socks5/http (%1)"_q.arg(scheme));
 		return; // поддерживаем только socks5/http
 	}
 	proxy.host = QString::fromUtf8(parts[1]);
@@ -241,6 +266,7 @@ void ApplyWorkdirProxy() {
 		? QString::fromUtf8(QByteArray::fromPercentEncoding(parts[3]))
 		: QString();
 	if (proxy.host.isEmpty() || !proxy.port) {
+		WDLog(u"exit: пустой host/port"_q);
 		return;
 	}
 	// сообщение, которое подписал сервер (тот же формат, что у менеджера)
@@ -249,9 +275,12 @@ void ApplyWorkdirProxy() {
 		+ '|' + user.toUtf8()
 		+ '|' + nonce.toUtf8()
 		+ '|' + QByteArray::number(ts);
+	WDLog(u"message: '%1'"_q.arg(QString::fromUtf8(message)));
 	if (!VerifyLaunchSignature(message, sig)) {
+		WDLog(u"exit: ПОДПИСЬ НЕ СОШЛАСЬ"_q);
 		return; // подпись не сошлась — proxy-фича недоступна
 	}
+	WDLog(u"подпись OK → InitProfile"_q);
 	// подпись валидна: можно подхватить профиль аккаунта из workdir
 	Workdir::InitProfile(cWorkingDir());
 	// Порт v2: уведомления фермы по умолчанию выключены (окно за окном)
@@ -261,7 +290,9 @@ void ApplyWorkdirProxy() {
 		proxy.password = QString::fromUtf8(QByteArray::fromPercentEncoding(parts[4]));
 	}
 	auto &settingsProxy = Core::App().settings().proxy();
+	WDLog(u"settings текущее состояние: %1"_q.arg(int(settingsProxy.settings())));
 	if (settingsProxy.settings() == MTP::ProxyData::Settings::Enabled) {
+		WDLog(u"exit: прокси уже включён пользователем — не перетираем"_q);
 		return; // пользователь уже включил прокси — не перетираем
 	}
 	if (settingsProxy.indexInList(proxy) < 0) {
@@ -271,6 +302,7 @@ void ApplyWorkdirProxy() {
 	settingsProxy.setUseProxyForCalls(true); // звонки тоже через прокси, не напрямую
 	settingsProxy.setSettings(MTP::ProxyData::Settings::Enabled);
 	Local::writeSettings(); // персистим сразу, чтобы пережило рестарт
+	WDLog(u"=== ПРОКСИ ПРИМЕНЁН ==="_q);
 }
 
 } // namespace
