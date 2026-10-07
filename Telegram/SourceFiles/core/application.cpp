@@ -287,9 +287,12 @@ void ApplyWorkdirProxy() {
 	// WebRTC в мини-аппах принудительно через прокси (иначе STUN светит
 	// реальный IP в обход SOCKS5).
 	if (!Workdir::WebProxy().isEmpty()) {
-		qputenv("WEBVIEW2_TG_PROXY",
-			(u"--proxy-server="_q + Workdir::WebProxy()
-				+ u" --force-webrtc-ip-handling-policy=disable_non_proxied_udp").toUtf8());
+		// НЕ склеивать три элемента через QStringBuilder с char16_t-литералом:
+		// Qt5 не имеет QConcatenable для const char16_t* (грабли №22)
+		const auto args = (u"--proxy-server="_q + Workdir::WebProxy())
+			+ QString::fromWCharArray(
+				L" --force-webrtc-ip-handling-policy=disable_non_proxied_udp");
+		qputenv("WEBVIEW2_TG_PROXY", args.toUtf8());
 		WDLog(u"webview proxy: %1"_q.arg(Workdir::WebProxy()));
 	}
 	// Порт v2: уведомления фермы по умолчанию выключены (окно за окном)
