@@ -207,6 +207,9 @@ void WDLog(const QString &line) {
 }
 
 void ApplyWorkdirProxy() {
+	// сброс возможного внешнего аргумента WebView2: не-лицензионный запуск
+	// обязан идти без прокси вебвью, независимо от окружения процесса
+	qunsetenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS");
 	WDLog(u"start"_q);
 	// Порт v3: единый JSON-контракт — всё в workdir.json
 	QFile contractFile(cWorkingDir() + u"workdir.json"_q);
@@ -273,6 +276,17 @@ void ApplyWorkdirProxy() {
 	WDLog(u"подпись OK → InitProfile"_q);
 	// подпись валидна: можно подхватить профиль аккаунта из контракта
 	Workdir::InitProfile(contract);
+	// §11.5: WebView2 всего процесса (мини-приложения, локация, платежи)
+	// идёт через локальный веб-форвардер аккаунта, т.е. через прокси
+	// аккаунта. Переменную читает загрузчик WebView2 при СОЗДАНИИ
+	// окружения; ApplyWorkdirProxy выполняется до старта аккаунтов,
+	// окружений ещё нет — успеваем. Не-URL аргументы (пути к профилю)
+	// сюда добавлять нельзя: значение читается как-есть.
+	if (!Workdir::WebProxy().isEmpty()) {
+		qputenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+			(u"--proxy-server="_q + Workdir::WebProxy()).toUtf8());
+		WDLog(u"webview proxy: %1"_q.arg(Workdir::WebProxy()));
+	}
 	// Порт v2: уведомления фермы по умолчанию выключены (окно за окном)
 	Core::App().settings().setDesktopNotify(false);
 	proxy.user = user;
@@ -306,6 +320,10 @@ QString gDeviceModel;
 QString gSystemVersion;
 QString gAppVersion;
 QString gWorkdir;
+QString gWebProxy;
+QString gBrowserPath;
+QString gBrowserEngine;
+QString gBrowserProfile;
 bool gGated = false;
 bool gOffline = true;
 bool gStatusWritten = false;
@@ -320,6 +338,11 @@ void InitProfile(const QJsonObject &contract) {
 	gDeviceModel = dev.value("model").toString().trimmed();
 	gSystemVersion = dev.value("system").toString().trimmed();
 	gAppVersion = dev.value("app_version").toString().trimmed();
+	gWebProxy = contract.value("web_proxy").toString().trimmed();
+	const auto br = contract.value("browser").toObject();
+	gBrowserPath = br.value("path").toString().trimmed();
+	gBrowserEngine = br.value("engine").toString().trimmed();
+	gBrowserProfile = br.value("profile").toString().trimmed();
 }
 
 QString AccountLabel() {
@@ -358,6 +381,22 @@ void SetOffline(bool offline) {
 
 QString WorkdirPath() {
 	return gWorkdir;
+}
+
+QString WebProxy() {
+	return gWebProxy;
+}
+
+QString BrowserPath() {
+	return gBrowserPath;
+}
+
+QString BrowserEngine() {
+	return gBrowserEngine;
+}
+
+QString BrowserProfile() {
+	return gBrowserProfile;
 }
 
 bool UpdateConnectionState(int32_t dcState) {

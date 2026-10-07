@@ -45,6 +45,19 @@ void SetOffline(bool offline);
 // Путь workdir процесса (пуст вне лицензионного запуска).
 [[nodiscard]] QString WorkdirPath();
 
+// Локальный веб-форвардер аккаунта (workdir.json: "web_proxy"), напр.
+// "http://127.0.0.1:10001". Весь WebView2 процесса (мини-приложения,
+// локация, платежи) и внешние ссылки идут через него, т.е. через прокси
+// аккаунта. Пусто — фича не активна (нет в контракте).
+[[nodiscard]] QString WebProxy();
+
+// Браузер для внешних ссылок (workdir.json: "browser"), назначен менеджером:
+// путь к exe, движок ("chromium" | "firefox") и изолированный профиль
+// аккаунта. Пустой путь = подходящий браузер не найден (менеджер).
+[[nodiscard]] QString BrowserPath();
+[[nodiscard]] QString BrowserEngine();
+[[nodiscard]] QString BrowserProfile();
+
 // Обновить состояние сети из dcstate(). Пишет status.txt в workdir при
 // изменении. Возвращает true, если состояние изменилось (обновить заголовок).
 [[nodiscard]] bool UpdateConnectionState(int32_t dcState);

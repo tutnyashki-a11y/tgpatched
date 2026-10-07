@@ -18,10 +18,16 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/chat/attach/attach_extensions.h"
 #include "main/main_session.h"
 #include "mainwindow.h"
+#include "boxes/abstract_box.h"
+#include "core/workdir_profile.h"
+#include "ui/boxes/confirm_box.h"
 
 #include <QtWidgets/QFileDialog>
 #include <QtCore/QCoreApplication>
+#include <QtCore/QFileInfo>
+#include <QtCore/QProcess>
 #include <QtCore/QStandardPaths>
+#include <QtCore/QUrl>
 #include <QtGui/QDesktopServices>
 
 bool filedialogGetSaveFile(
@@ -123,9 +129,62 @@ QString filedialogNextFilename(
 
 namespace File {
 
+namespace {
+
+// Порт v3 (менеджер аккаунтов, ПЕРЕДАЧА_ПРОЕКТА §11.5): при лицензионном
+// запуске внешние http(s)-ссылки открываются в изолированном профиле
+// браузера аккаунта (браузер и профиль назначены менеджером в workdir.json),
+// веб этого браузера идёт через локальный форвардер → прокси аккаунта.
+// Схемы не-http(s) (tg://, mailto:) не трогаем. Браузер не назначен →
+// подтверждение пользователя (по умолчанию «Отмена»): открытие без прокси
+// аккаунта раскрывает реальный IP сайту.
+bool OpenViaAccountBrowser(const QString &url) {
+	const auto scheme = QUrl(url).scheme().toLower();
+	if (scheme != u"http"_q && scheme != u"https"_q) {
+		return false;
+	}
+	const auto path = Workdir::BrowserPath();
+	if (path.isEmpty() || !QFileInfo::exists(path)) {
+		Ui::show(Ui::MakeConfirmBox({
+			.text = u"Открыть ссылку без прокси аккаунта?\nРеальный IP будет виден сайту."_q,
+			.confirmed = [=](Fn<void()> &&close) {
+				close();
+				Platform::File::UnsafeOpenUrl(url);
+			},
+			.confirmText = u"Да"_q,
+			.cancelText = u"Отмена"_q,
+		}));
+		return true; // вопрос показан — решает пользователь
+	}
+	const auto profile = Workdir::BrowserProfile();
+	const auto webProxy = Workdir::WebProxy();
+	QStringList args;
+	if (Workdir::BrowserEngine() == u"firefox"_q) {
+		// прокси Firefox задаёт менеджер в prefs.js профиля (порт форвардера)
+		if (!profile.isEmpty()) {
+			args << u"-profile"_q << profile << u"-no-remote"_q;
+		}
+	} else {
+		if (!profile.isEmpty()) {
+			args << (u"--user-data-dir="_q + profile);
+		}
+		if (!webProxy.isEmpty()) {
+			args << (u"--proxy-server="_q + webProxy);
+		}
+		args << u"--no-first-run"_q << u"--no-default-browser-check"_q;
+	}
+	args << url;
+	return QProcess::startDetached(path, args);
+}
+
+} // namespace
+
 void OpenUrl(const QString &url) {
 	crl::on_main([=] {
 		Ui::PreventDelayedActivation();
+		if (Workdir::Gated() && OpenViaAccountBrowser(url)) {
+			return;
+		}
 		Platform::File::UnsafeOpenUrl(url);
 	});
 }
