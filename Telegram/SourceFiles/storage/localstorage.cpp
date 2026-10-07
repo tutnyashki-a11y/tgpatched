@@ -1276,7 +1276,9 @@ void readLangPack() {
 		return;
 	}
 	CustomLangPack::initInstance();
-	CustomLangPack::currentInstance()->fetchCustomLangPack(langPackId, langPackBaseId);
+	// Порт v4: кастомный языковой пакет 64Gram отключён — он перекрывал
+	// брендинг CyberGram встроенными строками. Используются ресурсы lang.strings.
+	if (true) { return; } // CustomLangPack::currentInstance()->fetchCustomLangPack(langPackId, langPackBaseId);
 }
 
 void writeLangPack() {
