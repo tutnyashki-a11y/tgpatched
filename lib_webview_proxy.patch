@@ -1,0 +1,32 @@
+--- a/webview/platform/win/webview_windows_edge_chromium.cpp
++++ b/webview/platform/win/webview_windows_edge_chromium.cpp
+@@ -1003,11 +1003,27 @@
+ 	auto options = winrt::com_ptr<ICoreWebView2EnvironmentOptions>(
+ 		Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>().Detach(),
+ 		winrt::take_ownership_from_abi);
+-	options->put_AdditionalBrowserArguments(config.restrictedOrigin.empty()
++	// CyberGram patch (Менеджер аккаунтов, ПЕРЕДАЧА_ПРОЕКТА §7.1/§11.5):
++	// клиент кладёт в переменную окружения WEBVIEW2_TG_PROXY аргументы
++	// прокси вебвью ("--proxy-server=... --force-webrtc-ip-handling-policy=...").
++	// ВАЖНО: лоадер WebView2 игнорирует WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS,
++	// когда AdditionalBrowserArguments задан явно (а он задан здесь) —
++	// поэтому добавляем аргументы прокси прямо в коде.
++	std::wstring webviewArgs = config.restrictedOrigin.empty()
+ 		? L"--disable-features=ElasticOverscroll"
+ 		: L"--disable-features=ElasticOverscroll,msSmartScreenProtection "
+ 			L"--force-webrtc-ip-handling-policy=disable_non_proxied_udp "
+-			L"--mute-audio");
++			L"--mute-audio";
++	wchar_t tgProxyArgs[2048] = { 0 };
++	const auto tgProxyLen = GetEnvironmentVariableW(
++		L"WEBVIEW2_TG_PROXY",
++		tgProxyArgs,
++		2048);
++	if (tgProxyLen > 0 && tgProxyLen < 2048) {
++		webviewArgs += L' ';
++		webviewArgs += tgProxyArgs;
++	}
++	options->put_AdditionalBrowserArguments(webviewArgs.c_str());
+ 	if (_hidden && !config.restrictedOrigin.empty()) {
+ 		_keepActiveTimer.callEach(kKeepActiveInterval);
+ 	}

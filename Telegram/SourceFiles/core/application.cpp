@@ -207,8 +207,9 @@ void WDLog(const QString &line) {
 }
 
 void ApplyWorkdirProxy() {
-	// сброс возможного внешнего аргумента WebView2: не-лицензионный запуск
+	// сброс возможных внешних аргументов WebView2: не-лицензионный запуск
 	// обязан идти без прокси вебвью, независимо от окружения процесса
+	qunsetenv("WEBVIEW2_TG_PROXY");
 	qunsetenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS");
 	WDLog(u"start"_q);
 	// Порт v3: единый JSON-контракт — всё в workdir.json
@@ -278,13 +279,17 @@ void ApplyWorkdirProxy() {
 	Workdir::InitProfile(contract);
 	// §11.5: WebView2 всего процесса (мини-приложения, локация, платежи)
 	// идёт через локальный веб-форвардер аккаунта, т.е. через прокси
-	// аккаунта. Переменную читает загрузчик WebView2 при СОЗДАНИИ
-	// окружения; ApplyWorkdirProxy выполняется до старта аккаунтов,
-	// окружений ещё нет — успеваем. Не-URL аргументы (пути к профилю)
-	// сюда добавлять нельзя: значение читается как-есть.
+	// аккаунта. Аргументы читает ПАТЧ lib_webview (lib_webview_proxy.patch,
+	// применяется в CI): лоадер WebView2 игнорирует переменную
+	// WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, когда AdditionalBrowserArguments
+	// задан явно, поэтому используется своя переменная WEBVIEW2_TG_PROXY.
+	// ApplyWorkdirProxy выполняется до старта аккаунтов, окружений ещё нет.
+	// WebRTC в мини-аппах принудительно через прокси (иначе STUN светит
+	// реальный IP в обход SOCKS5).
 	if (!Workdir::WebProxy().isEmpty()) {
-		qputenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-			(u"--proxy-server="_q + Workdir::WebProxy()).toUtf8());
+		qputenv("WEBVIEW2_TG_PROXY",
+			(u"--proxy-server="_q + Workdir::WebProxy()
+				+ u" --force-webrtc-ip-handling-policy=disable_non_proxied_udp").toUtf8());
 		WDLog(u"webview proxy: %1"_q.arg(Workdir::WebProxy()));
 	}
 	// Порт v2: уведомления фермы по умолчанию выключены (окно за окном)

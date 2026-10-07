@@ -95,6 +95,11 @@ jobs:
           submodules: recursive
           path: ${{ env.TBUILD }}\${{ env.REPO_NAME }}
 
+      - name: Patch lib_webview (webview proxy).
+        shell: bash
+        run: |
+          git -C "$TBUILD/$REPO_NAME/Telegram/lib_webview" apply --whitespace=nowarn "$TBUILD/$REPO_NAME/lib_webview_proxy.patch"
+
       - name: First set up.
         shell: bash
         run: |
