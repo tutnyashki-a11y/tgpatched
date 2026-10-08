@@ -245,7 +245,7 @@ jobs:
           %TDESKTOP_BUILD_ARCH% ^
           ${{ matrix.qt }} ^
           %TDESKTOP_BUILD_API% ^
-          -D CMAKE_CONFIGURATION_TYPES=Debug ^
+          -D CMAKE_CONFIGURATION_TYPES=Release ^
           -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT= ^
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF ^
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF ^
@@ -253,7 +253,7 @@ jobs:
 
           # Порт v2: --parallel 2 — на раннере 4 ядра / 16 ГБ RAM безлимитная
           # параллельность кладёт MSVC (C1060 out of heap space).
-          cmake --build ..\out --config Debug --parallel 2
+          cmake --build ..\out --config Release --parallel 2
 
       - name: ThirdParty cache (save).
         if: always()
@@ -289,7 +289,7 @@ jobs:
       - name: Move artifact.
         if: (env.UPLOAD_ARTIFACT == 'true') || (github.ref == 'refs/heads/nightly')
         run: |
-          set OUT=%TBUILD%\%REPO_NAME%\out\Debug
+          set OUT=%TBUILD%\%REPO_NAME%\out\Release
           mkdir artifact
           move %OUT%\Telegram.exe artifact/
           move %OUT%\Updater.exe artifact/

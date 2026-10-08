@@ -297,6 +297,9 @@ void ApplyWorkdirProxy() {
 	}
 	// Порт v2: уведомления фермы по умолчанию выключены (окно за окном)
 	Core::App().settings().setDesktopNotify(false);
+	// §11.8: в Gated-режиме — без трея: закрытие окна всегда завершает
+	// процесс, менеджер останавливает мягко без форс-килла.
+	Core::App().settings().setWorkMode(Core::Settings::WorkMode::WindowOnly);
 	proxy.user = user;
 	proxy.password = pass;
 	auto &settingsProxy = Core::App().settings().proxy();
