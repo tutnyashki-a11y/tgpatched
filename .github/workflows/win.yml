@@ -143,6 +143,12 @@ jobs:
           nuget sources Disable -Name "Microsoft Visual Studio Offline Packages"
           nuget sources Add -Source https://api.nuget.org/v3/index.json & exit 0
 
+      - name: Ensure ATL headers (Release breakpad needs atlbase.h).
+        # Грабли №24: на windows-latest нет ATL для тулчейна 14.44 —
+        # сборка breakpad Release падает с C1083. Доустанавливаем.
+        run: |
+          "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vs_installer.exe" modify --installPath "%ProgramFiles%\Microsoft Visual Studio\18\Enterprise" --add Microsoft.VisualStudio.Component.VC.ATL --quiet --norestart --nocache --wait
+
       # Порт v2: явные restore/save вместо actions/cache@v6 — save-always
       # на v6 кэш не сохранил ни разу, а сохранить Libraries нужно даже
       # при провале сборки (2+ часа работы).
@@ -179,7 +185,9 @@ jobs:
 
       - name: Libraries.
         run: |
-          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent ${{ matrix.qt }}
+          # Release-приложению нужны Release-библиотеки (грабли №23) —
+          # без skip-release prepare соберёт обе конфигурации.
+          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent ${{ matrix.qt }}
 
       - name: Read configuration matrix.
         shell: bash
@@ -245,7 +253,7 @@ jobs:
           %TDESKTOP_BUILD_ARCH% ^
           ${{ matrix.qt }} ^
           %TDESKTOP_BUILD_API% ^
-          -D CMAKE_CONFIGURATION_TYPES=Debug ^
+          -D CMAKE_CONFIGURATION_TYPES=Release ^
           -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT= ^
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF ^
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF ^
@@ -253,7 +261,7 @@ jobs:
 
           # Порт v2: --parallel 2 — на раннере 4 ядра / 16 ГБ RAM безлимитная
           # параллельность кладёт MSVC (C1060 out of heap space).
-          cmake --build ..\out --config Debug --parallel 2
+          cmake --build ..\out --config Release --parallel 2
 
       - name: ThirdParty cache (save).
         if: always()
@@ -289,7 +297,7 @@ jobs:
       - name: Move artifact.
         if: (env.UPLOAD_ARTIFACT == 'true') || (github.ref == 'refs/heads/nightly')
         run: |
-          set OUT=%TBUILD%\%REPO_NAME%\out\Debug
+          set OUT=%TBUILD%\%REPO_NAME%\out\Release
           mkdir artifact
           move %OUT%\Telegram.exe artifact/
           move %OUT%\Updater.exe artifact/

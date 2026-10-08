@@ -197,8 +197,14 @@ bool VerifyLaunchSignature(const QByteArray &message, const QByteArray &sigHex) 
 
 
 // Трассировка ApplyWorkdirProxy: каждый шаг пишется в workdir/proxy_debug.txt.
-// Временный инструмент отладки — показывает точное место раннего выхода.
+// Отладочный лог (proxy_debug.txt) — управляется ключом "debug_log"
+// контракта (менеджер пишет false для пользовательских сборок).
+// По умолчанию ВКЛ (старые workdir.json без ключа + все ранние выходы).
+bool g_wdlog_enabled = true;
 void WDLog(const QString &line) {
+	if (!g_wdlog_enabled) {
+		return;
+	}
 	QFile f(cWorkingDir() + u"proxy_debug.txt"_q);
 	if (f.open(QIODevice::Append)) {
 		f.write((QDateTime::currentDateTime().toString(u"HH:mm:ss "_q)
@@ -224,6 +230,7 @@ void ApplyWorkdirProxy() {
 		WDLog(u"exit: workdir.json пуст или битый"_q);
 		return;
 	}
+	g_wdlog_enabled = contract.value("debug_log").toBool(true);
 	const auto proxyObj = contract.value("proxy").toObject();
 	const auto tokenObj = contract.value("token").toObject();
 	const auto nonce = tokenObj.value("nonce").toString();
