@@ -179,7 +179,10 @@ jobs:
 
       - name: Libraries.
         run: |
-          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent ${{ matrix.qt }}
+          # Порт: Release-сборке нужны Release-библиотеки (tg_angle/out/Release
+          # и др.) — без skip-release prepare соберёт обе конфигурации.
+          # Один раз дольше, дальше из кэша (ключ общий, сохраняет всё).
+          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent ${{ matrix.qt }}
 
       - name: Read configuration matrix.
         shell: bash
