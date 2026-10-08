@@ -62,6 +62,9 @@ optionsList = [
     'skip-release',
     'build-stackwalk',
     'qt-asserts',
+    # Порт: пропуск breakpad (краш-репорты отключены в приложении,
+    # на раннере нет ATL-заголовков — грабли №24).
+    'no-breakpad',
 ]
 options = []
 runCommand = []
@@ -270,6 +273,8 @@ def filterByPlatform(commands):
     return [result, dependencies, version]
 
 def stage(name, commands, location = 'Libraries'):
+    if name == 'breakpad' and 'no-breakpad' in options:
+        return
     if location == 'Libraries':
         directory = libsDir
     elif location == 'ThirdParty':
