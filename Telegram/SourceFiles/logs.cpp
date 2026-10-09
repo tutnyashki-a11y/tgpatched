@@ -130,6 +130,8 @@ private:
 	int32 part = -1;
 
 	bool reopen(LogDataType type, int32 dayIndex, const QString &postfix) {
+		QDir().mkpath(cWorkingDir() + u"logs"_q);
+		QDir().mkpath(cWorkingDir() + u"logs/DebugLogs"_q);
 		if (files[type] && files[type]->isOpen()) {
 			if (type == LogDataMain) {
 				if (!postfix.isEmpty()) {
