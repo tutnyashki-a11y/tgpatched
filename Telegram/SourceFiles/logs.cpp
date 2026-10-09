@@ -50,7 +50,7 @@ QMutex *_logsMutex(LogDataType type, bool clear = false) {
 }
 
 QString _logsFilePath(LogDataType type, const QString &postfix = QString()) {
-	QString path(cWorkingDir());
+	QString path(cWorkingDir() + u"logs/"_q);
 	switch (type) {
 	case LogDataMain: path += u"log"_q + postfix + u".txt"_q; break;
 	case LogDataDebug: path += u"DebugLogs/log"_q + postfix + u".txt"_q; break;
@@ -176,10 +176,10 @@ private:
 
 				LogsStartIndexChosen = -1;
 
-				QDir working(cWorkingDir()); // delete all other log_startXX.txt that we can
+				QDir working(cWorkingDir() + u"logs"_q); // delete all other log_startXX.txt that we can
 				QStringList oldlogs = working.entryList(QStringList("log_start*.txt"), QDir::Files);
 				for (QStringList::const_iterator i = oldlogs.cbegin(), e = oldlogs.cend(); i != e; ++i) {
-					QString oldlog = cWorkingDir() + *i, oldlogend = i->mid(u"log_start"_q.size());
+					QString oldlog = cWorkingDir() + u"logs/"_q + *i, oldlogend = i->mid(u"log_start"_q.size());
 					if (oldlogend.size() == 1 + u".txt"_q.size() && oldlogend.at(0).isDigit() && base::StringViewMid(oldlogend, 1) == u".txt"_q) {
 						bool removed = QFile(oldlog).remove();
 						LOG(("Old start log '%1' found, deleted: %2").arg(*i, Logs::b(removed)));
@@ -220,7 +220,8 @@ private:
 					files[type]->close();
 				}
 			} else {
-				QDir().mkdir(cWorkingDir() + u"DebugLogs"_q);
+				QDir().mkpath(cWorkingDir() + u"logs"_q);
+				QDir().mkpath(cWorkingDir() + u"logs/DebugLogs"_q);
 			}
 		}
 		if (files[type]->open(mode)) {

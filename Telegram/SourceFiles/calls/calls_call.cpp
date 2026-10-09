@@ -1201,7 +1201,7 @@ void Call::createAndStartController(const MTPDphoneCall &call) {
 			saveSetDeviceIdCallback),
 	};
 	if (Logs::DebugEnabled()) {
-		const auto callLogFolder = cWorkingDir() + u"DebugLogs"_q;
+		const auto callLogFolder = cWorkingDir() + u"logs/DebugLogs"_q;
 		const auto callLogPath = callLogFolder + u"/last_call_log.txt"_q;
 		const auto callLogNative = QDir::toNativeSeparators(callLogPath);
 #ifdef Q_OS_WIN

@@ -403,7 +403,7 @@ int Launcher::exec() {
 
 	if (Logs::DebugEnabled()) {
 		const auto openalLogPath = QDir::toNativeSeparators(
-			cWorkingDir() + u"DebugLogs/last_openal_log.txt"_q);
+			cWorkingDir() + u"logs/DebugLogs/last_openal_log.txt"_q);
 
 		qputenv("ALSOFT_LOGLEVEL", "3");
 

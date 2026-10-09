@@ -22,6 +22,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/timer.h"
 #include "base/unixtime.h"
 #include <QFile>
+#include <QDir>
 #include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -196,7 +197,7 @@ bool VerifyLaunchSignature(const QByteArray &message, const QByteArray &sigHex) 
 }
 
 
-// Трассировка ApplyWorkdirProxy: каждый шаг пишется в workdir/proxy_debug.txt.
+// Трассировка ApplyWorkdirProxy: каждый шаг пишется в workdir/logs/proxy_debug.txt.
 // Отладочный лог (proxy_debug.txt) — управляется ключом "debug_log"
 // контракта (менеджер пишет false для пользовательских сборок).
 // По умолчанию ВКЛ (старые workdir.json без ключа + все ранние выходы).
@@ -205,7 +206,8 @@ void WDLog(const QString &line) {
 	if (!g_wdlog_enabled) {
 		return;
 	}
-	QFile f(cWorkingDir() + u"proxy_debug.txt"_q);
+	QDir().mkpath(cWorkingDir() + u"logs"_q);
+	QFile f(cWorkingDir() + u"logs/proxy_debug.txt"_q);
 	if (f.open(QIODevice::Append)) {
 		f.write((QDateTime::currentDateTime().toString(u"HH:mm:ss "_q)
 			+ line + u"\n"_q).toUtf8());
@@ -231,6 +233,10 @@ void ApplyWorkdirProxy() {
 		return;
 	}
 	g_wdlog_enabled = contract.value("debug_log").toBool(true);
+	if (!g_wdlog_enabled) {
+		QFile::remove(cWorkingDir() + u"proxy_debug.txt"_q);
+		QFile::remove(cWorkingDir() + u"logs/proxy_debug.txt"_q);
+	}
 	const auto proxyObj = contract.value("proxy").toObject();
 	const auto tokenObj = contract.value("token").toObject();
 	const auto nonce = tokenObj.value("nonce").toString();

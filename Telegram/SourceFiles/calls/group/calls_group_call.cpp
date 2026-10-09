@@ -3174,7 +3174,7 @@ bool GroupCall::tryCreateController() {
 		.enableHDVideo = GetEnhancedBool("hd_video"),
 	};
 	if (Logs::DebugEnabled()) {
-		auto callLogFolder = cWorkingDir() + u"DebugLogs"_q;
+		auto callLogFolder = cWorkingDir() + u"logs/DebugLogs"_q;
 		auto callLogPath = callLogFolder + u"/last_group_call_log.txt"_q;
 		auto callLogNative = QDir::toNativeSeparators(callLogPath);
 		descriptor.config.need_log = true;
