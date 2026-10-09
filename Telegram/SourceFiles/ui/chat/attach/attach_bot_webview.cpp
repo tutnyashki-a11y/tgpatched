@@ -30,6 +30,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/ui_utility.h"
 #include "lang/lang_keys.h"
 #include "core/file_utilities.h"
+#include "core/workdir_profile.h"
 #include "webview/webview_embed.h"
 #include "webview/webview_dialog.h"
 #include "webview/webview_interface.h"
@@ -2475,9 +2476,16 @@ bool Panel::createWebview(const Webview::ThemeParams &params) {
 	raw->setNavigationStartHandler([=](const QString &uri, bool newWindow) {
 		if (_delegate->botHandleLocalUri(uri, false)) {
 			return false;
-		} else if (newWindow) {
-			return true;
+	} else if (newWindow) {
+		// CyberGram (Менеджер аккаунтов): ссылки из мини-аппа — в изолированный
+		// браузер аккаунта через File::OpenUrl, а не в системный (иначе сайту
+		// виден реальный IP). Вне Gated — как было.
+		if (Workdir::Gated()) {
+			File::OpenUrl(uri);
+			return false;
 		}
+		return true;
+	}
 		_currentOrigin = OriginFromUrl(uri);
 		showWebviewProgress();
 		return true;
