@@ -5,6 +5,7 @@ the official desktop application for the Telegram messaging service.
 For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
+#include "core/workdir_profile.h"
 #include "main/main_domain.h"
 
 #include "core/application.h"
@@ -316,6 +317,11 @@ not_null<Main::Account*> Domain::add(MTP::Environment environment) {
 }
 
 void Domain::addActivated(MTP::Environment environment, bool newWindow) {
+	// Менеджер: второй слот только через менеджер. Пустой домен (свежий вход)
+	// пропускаем всегда — иначе повторим откат 0f6e556.
+	if (Workdir::Gated() && !accounts().empty()) {
+		return;
+	}
 	const auto added = [&](not_null<Main::Account*> account) {
 		if (newWindow) {
 			Core::App().ensureSeparateWindowFor(account);

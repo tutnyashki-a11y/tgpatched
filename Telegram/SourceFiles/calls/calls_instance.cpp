@@ -206,8 +206,14 @@ void Instance::startOutgoingCall(
 		StartOutgoingCallArgs args) {
 	// Порт v4: звонки в Gated-режиме запрещены — UDP к рефлекторам Telegram
 	// идёт напрямую и светит реальный IP. Исходящие не стартуют, входящие игнорируются.
+	// Исключение: SOCKS5-прокси (tgcalls умеет, см. supportsCalls) — звонки идут
+	// через него, пир видит только exit-IP прокси.
 	if (Workdir::Gated()) {
-		return;
+		const auto &proxy = Core::App().settings().proxy();
+		if (!proxy.isEnabled()
+			|| proxy.selected().type != MTP::ProxyData::Type::Socks5) {
+			return;
+		}
 	}
 	if (activateCurrentCall()
 		|| (!args.isConfirmed && activateUnconfirmedCall(user))) {
@@ -235,6 +241,10 @@ void Instance::startOrJoinGroupCall(
 		std::shared_ptr<Ui::Show> show,
 		not_null<PeerData*> peer,
 		StartGroupCallArgs args) {
+	// Менеджер: как лички — в Gated-режиме групповых нет (UDP мимо прокси).
+	if (Workdir::Gated()) {
+		return;
+	}
 	confirmLeaveCurrent(show, peer, args, [=](StartGroupCallArgs args) {
 		using JoinConfirm = Calls::StartGroupCallArgs::JoinConfirm;
 		const auto context = (args.confirm == JoinConfirm::Always)
@@ -433,8 +443,13 @@ void Instance::createCall(
 		StartOutgoingCallArgs args) {
 	// Порт v4: общая воронка — исходящие (через startOutgoingCall) и входящие
 	// (из handleCallUpdate). В Gated-режиме звонков нет вообще.
+	// Исключение: SOCKS5-прокси — звонки идут через него (см. выше).
 	if (Workdir::Gated()) {
-		return;
+		const auto &proxy = Core::App().settings().proxy();
+		if (!proxy.isEnabled()
+			|| proxy.selected().type != MTP::ProxyData::Type::Socks5) {
+			return;
+		}
 	}
 	struct Performer final {
 		explicit Performer(Fn<void(bool, bool, const Performer &)> callback)
@@ -501,6 +516,10 @@ void Instance::destroyGroupCall(not_null<GroupCall*> call) {
 void Instance::createGroupCall(
 		Group::JoinInfo info,
 		const MTPInputGroupCall &inputCall) {
+	// Менеджер: страховка прямого вызова — в Gated-режиме групповых нет.
+	if (Workdir::Gated()) {
+		return;
+	}
 	destroyCurrentCall();
 
 	auto call = std::make_unique<GroupCall>(
