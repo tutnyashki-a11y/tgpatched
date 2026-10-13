@@ -290,6 +290,15 @@ void ApplyWorkdirProxy() {
 	WDLog(u"подпись OK → InitProfile"_q);
 	// подпись валидна: можно подхватить профиль аккаунта из контракта
 	Workdir::InitProfile(contract);
+	// Витрина «Это устройство»: список сессий рисует локальную настройку
+	// (api_authorizations.cpp:58-60, hash==0), а на провода уходит workdir-модель.
+	// Синхронизируем: без подписи — сбрасываем, чтобы обычный запуск вёл себя
+	// байт-в-байт как раньше (иначе залипнет модель прошлого запуска).
+	if (Workdir::Gated() && !Workdir::DeviceModel().isEmpty()) {
+		Core::App().settings().setCustomDeviceModel(Workdir::DeviceModel());
+	} else if (!Workdir::Gated()) {
+		Core::App().settings().setCustomDeviceModel(QString());
+	}
 	// §11.5: WebView2 всего процесса (мини-приложения, локация, платежи)
 	// идёт через локальный веб-форвардер аккаунта, т.е. через прокси
 	// аккаунта. Аргументы читает ПАТЧ lib_webview (lib_webview_proxy.patch,
