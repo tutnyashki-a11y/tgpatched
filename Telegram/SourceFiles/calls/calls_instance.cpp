@@ -270,6 +270,11 @@ void Instance::startOrJoinGroupCall(
 void Instance::startOrJoinConferenceCall(StartConferenceInfo args) {
 	Expects(args.call || args.show);
 
+	// Менеджер: конференции — тот же прямой GroupCall-путь мимо гардов,
+	// в Gated-режиме запрещены (UDP мимо прокси).
+	if (Workdir::Gated()) {
+		return;
+	}
 	const auto migrationInfo = (args.migrating
 		&& args.call
 		&& _currentCallPanel)
