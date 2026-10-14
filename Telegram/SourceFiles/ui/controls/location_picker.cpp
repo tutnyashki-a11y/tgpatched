@@ -43,6 +43,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "webview/webview_embed.h"
 #include "webview/webview_interface.h"
 #include "core/cached_webview_availability.h"
+#include "core/workdir_profile.h"
 #include "window/themes/window_theme.h"
 #include "styles/style_dialogs.h"
 #include "styles/style_location_picker.h"
@@ -50,6 +51,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_settings.h" // settingsCloudPasswordIconSize
 
 #include <QtCore/QFile>
+#include <QtCore/QUrl>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
 #include <QtCore/QJsonValue>
@@ -958,6 +960,17 @@ void LocationPicker::setupWebview() {
 	}, _container->lifetime());
 
 	raw->setNavigationStartHandler([=](const QString &uri, bool newWindow) {
+		// Менеджер: в Gated-режиме внешние http(s)-ссылки из геопикера —
+		// в изолированный браузер аккаунта через File::OpenUrl (как newWindow
+		// мини-аппов, attach_bot_webview.cpp), а не внутри вебвью. Карта
+		// (WebView2 через форвардер) и поиск мест (MTProto) не затрагиваются.
+		if (Workdir::Gated()) {
+			const auto scheme = QUrl(uri).scheme().toLower();
+			if (scheme == u"http"_q || scheme == u"https"_q) {
+				File::OpenUrl(uri);
+				return false;
+			}
+		}
 		return true;
 	});
 	raw->setNavigationDoneHandler([=](bool success) {
