@@ -1261,13 +1261,20 @@ void BuildInformationSection(SectionBuilder &builder) {
 			},
 		};
 	});
-	builder.add(nullptr, [] {
-		return SearchEntry{
-			.id = u"edit/add-account"_q,
-			.title = tr::lng_menu_add_account(tr::now),
-			.keywords = { u"account"_q, u"add"_q, u"switch"_q, u"multiple"_q },
-		};
-	});
+	if (!Workdir::Gated()) {
+		builder.add(nullptr, [] {
+			return SearchEntry{
+				.id = u"edit/add-account"_q,
+				.title = tr::lng_menu_add_account(tr::now),
+				.keywords = {
+					u"account"_q,
+					u"add"_q,
+					u"switch"_q,
+					u"multiple"_q,
+				},
+			};
+		});
+	}
 }
 
 class Information : public Section<Information> {

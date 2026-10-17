@@ -397,6 +397,11 @@ void Instance::confirmLeaveCurrent(
 void Instance::showStartWithRtmp(
 		std::shared_ptr<Ui::Show> show,
 		not_null<PeerData*> peer) {
+	// Порт v4: RTMP-стрим идёт напрямую в рефлектор Telegram
+	// (OBS шлёт медиапоток мимо прокси аккаунта) — в Gated-режиме запрещён.
+	if (Workdir::Gated()) {
+		return;
+	}
 	_startWithRtmp->start(peer, show, [=](Group::JoinInfo info) {
 		confirmLeaveCurrent(show, peer, {}, [=](auto) {
 			_startWithRtmp->close();

@@ -160,9 +160,12 @@ bool OpenViaAccountBrowser(const QString &url) {
 	const auto webProxy = Workdir::WebProxy();
 	QStringList args;
 	if (Workdir::BrowserEngine() == u"firefox"_q) {
-		// прокси Firefox задаёт менеджер в prefs.js профиля (порт форвардера)
+		// прокси Firefox задаёт менеджер в prefs.js профиля (порт форвардера);
+		// намеренно без -no-remote: при живом процессе Firefox с этим же
+		// профилем новый клик открывает окно в нём, а с -no-remote промолчал
+		// бы (профиль занят существующим экземпляром)
 		if (!profile.isEmpty()) {
-			args << u"-profile"_q << profile << u"-no-remote"_q;
+			args << u"-profile"_q << profile;
 		}
 	} else {
 		if (!profile.isEmpty()) {

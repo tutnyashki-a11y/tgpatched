@@ -9,6 +9,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "webrtc/webrtc_call_context.h"
 
+#include "core/workdir_profile.h"
+
 namespace Calls {
 namespace {
 
@@ -55,7 +57,9 @@ using namespace Webrtc;
 			1
 		) | ranges::views::transform(ConvertEndpoint) | ranges::to_vector,
 		.maxLayer = config.maxApiLayer,
-		.allowP2P = config.enableP2P,
+		// Порт v4: в Gated-режиме P2P-кандидаты выключены — ICE ходит
+		// к пиру напрямую, мимо прокси аккаунта.
+		.allowP2P = !Workdir::Gated() && config.enableP2P,
 		.sendSignalingData = std::move(sendSignalingData),
 		.displayNextFrame = std::move(displayNextFrame),
 	};

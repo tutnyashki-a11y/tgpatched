@@ -1594,6 +1594,19 @@ void Panel::hideWebviewProgress() {
 }
 
 bool Panel::showWebview(Args &&args, const Webview::ThemeParams &params) {
+	// Порт v6 (менеджер аккаунтов): standalone-миниапы не открываются во
+	// встроенном WebView2 — initData уже вшита сервером в args.url, поэтому
+	// антидетект-браузер аккаунта получает авторизованную сессию без
+	// WebK-логина и внешнего ареала страницы. sameOrigin
+	// (встроенные inline-вложения ботов) работает как раньше.
+	if (Workdir::Gated() && !args.sameOrigin) {
+		const auto scheme = QUrl(args.url).scheme().toLower();
+		if (scheme == u"http"_q || scheme == u"https"_q) {
+			File::OpenUrl(args.url);
+			_delegate->botClose();
+			return true;
+		}
+	}
 	_bottomText = std::move(args.bottom);
 	_externalUrl = args.url;
 	_sameOrigin = args.sameOrigin;
