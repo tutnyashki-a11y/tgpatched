@@ -236,6 +236,33 @@ jobs:
         shell: bash
         run: find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -path '*/nv-codec-headers/*' ')' -type f ')' -o -empty ')' -delete
 
+      # Порт v3 (18.10): линковка дважды упиралась в диск раннера
+      # (LNK1180 insufficient disk space). Снимаем предустановленный
+      # мусор образа, который сборке не нужен: ~12-15 ГБ.
+      - name: Free more disk space (v3).
+        shell: pwsh
+        run: |
+          $targets = @(
+            'C:\ProgramData\Package Cache',
+            'C:\ProgramData\Chocolatey',
+            'C:\Android',
+            'C:\Program Files\dotnet',
+            'C:\Program Files\Go',
+            'C:\Program Files\MongoDB',
+            'C:\ProgramData\MongoDB',
+            'C:\Program Files\PostgreSQL',
+            'C:\Program Files\MySQL',
+            "$env:ProgramFiles\Java"
+          )
+          foreach ($t in $targets) {
+            if (Test-Path -LiteralPath $t) {
+              Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }
+          Get-ChildItem 'C:\hostedtoolcache\windows' -Directory -Filter 'Java*' `
+            -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+          "free after cleanup: {0:N2} GB" -f ((Get-PSDrive C).Free / 1GB)
+
       - name: Telegram Desktop build.
         if: env.ONLY_CACHE == 'false'
         run: |
@@ -243,6 +270,8 @@ jobs:
 
           # Порт v2: без WAE (CMAKE_COMPILE_WARNING_AS_ERROR) — ворнинги
           # третьестороннего MicroTeX под новым MSVC 14.44 убивают сборку.
+          # Порт v3: апдейтер отключаем — обновления доставляются вручную,
+          # Updater.exe не нужен (и жрал место на линковке).
           call configure.bat ^
           %TDESKTOP_BUILD_GENERATOR% ^
           %TDESKTOP_BUILD_ARCH% ^
@@ -250,7 +279,7 @@ jobs:
           %TDESKTOP_BUILD_API% ^
           -D CMAKE_CONFIGURATION_TYPES=Release ^
           -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT= ^
-          -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF ^
+          -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON ^
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON ^
           %TDESKTOP_BUILD_DEFINE%
 
@@ -295,7 +324,7 @@ jobs:
           set OUT=%TBUILD%\%REPO_NAME%\out\Release
           mkdir artifact
           move %OUT%\Telegram.exe artifact/
-          move %OUT%\Updater.exe artifact/
+          if exist %OUT%\Updater.exe move %OUT%\Updater.exe artifact/
       - uses: actions/upload-artifact@v7
         name: Upload artifact.
         if: (env.UPLOAD_ARTIFACT == 'true') || (github.ref == 'refs/heads/nightly')
