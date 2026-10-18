@@ -1599,7 +1599,11 @@ bool Panel::showWebview(Args &&args, const Webview::ThemeParams &params) {
 	// антидетект-браузер аккаунта получает авторизованную сессию без
 	// WebK-логина и внешнего ареала страницы. sameOrigin
 	// (встроенные inline-вложения ботов) работает как раньше.
-	if (Workdir::Gated() && !args.sameOrigin) {
+	// Правка v7 (18.10): miniapp_external=true (config.yaml: miniapp_in_antik)
+	// → ВСЕ миниапы, включая sameOrigin, уходят в антик через File::OpenUrl;
+	// false → прежнее поведение (sameOrigin остаются внутри).
+	if (Workdir::Gated()
+		&& (Workdir::MiniAppExternal() || !args.sameOrigin)) {
 		const auto scheme = QUrl(args.url).scheme().toLower();
 		if (scheme == u"http"_q || scheme == u"https"_q) {
 			File::OpenUrl(args.url);

@@ -58,6 +58,13 @@ void SetOffline(bool offline);
 [[nodiscard]] QString BrowserEngine();
 [[nodiscard]] QString BrowserProfile();
 
+// Миниапы (workdir.json: "miniapp_external", ставит менеджер из
+// config.yaml: miniapp_in_antik). true = ВСЕ миниапы, включая inline
+// sameOrigin-кнопки, открываются во внешнем браузере (антике) через
+// File::OpenUrl; false = прежнее поведение (sameOrigin остаются
+// внутри клиента).
+[[nodiscard]] bool MiniAppExternal();
+
 // Обновить состояние сети из dcstate(). Пишет status.txt в workdir при
 // изменении. Возвращает true, если состояние изменилось (обновить заголовок).
 [[nodiscard]] bool UpdateConnectionState(int32_t dcState);

@@ -358,6 +358,7 @@ QString gBrowserPath;
 QString gBrowserEngine;
 QString gBrowserProfile;
 bool gGated = false;
+bool gMiniAppExternal = false;
 bool gOffline = true;
 bool gStatusWritten = false;
 
@@ -376,6 +377,7 @@ void InitProfile(const QJsonObject &contract) {
 	gBrowserPath = br.value("path").toString().trimmed();
 	gBrowserEngine = br.value("engine").toString().trimmed();
 	gBrowserProfile = br.value("profile").toString().trimmed();
+	gMiniAppExternal = contract.value("miniapp_external").toBool(false);
 }
 
 QString AccountLabel() {
@@ -430,6 +432,10 @@ QString BrowserEngine() {
 
 QString BrowserProfile() {
 	return gBrowserProfile;
+}
+
+bool MiniAppExternal() {
+	return gMiniAppExternal;
 }
 
 bool UpdateConnectionState(int32_t dcState) {
