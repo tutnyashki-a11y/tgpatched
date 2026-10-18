@@ -148,7 +148,7 @@ jobs:
       # при провале сборки (2+ часа работы).
       - name: ThirdParty cache (restore).
         id: cache-third-party
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.TBUILD }}\ThirdParty
           key: ${{ runner.OS }}-${{ runner.arch }}-third-party-${{ env.CACHE_KEY }}
@@ -156,7 +156,7 @@ jobs:
 
       - name: Libraries cache (restore).
         id: cache-libs
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             ${{ env.LibrariesPath }}\*
@@ -169,7 +169,7 @@ jobs:
 
       - name: Qt cache (restore).
         id: cache-qt
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             ${{ env.LibrariesPath }}\[qQ]t[_-]*
@@ -290,7 +290,7 @@ jobs:
       - name: ThirdParty cache (save).
         if: always()
         continue-on-error: true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ env.TBUILD }}\ThirdParty
           key: ${{ runner.OS }}-${{ runner.arch }}-third-party-${{ env.CACHE_KEY }}
@@ -298,7 +298,7 @@ jobs:
       - name: Libraries cache (save).
         if: always()
         continue-on-error: true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             ${{ env.LibrariesPath }}\*
@@ -311,7 +311,7 @@ jobs:
       - name: Qt cache (save).
         if: always()
         continue-on-error: true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             ${{ env.LibrariesPath }}\[qQ]t[_-]*
