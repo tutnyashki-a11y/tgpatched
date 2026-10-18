@@ -238,23 +238,6 @@ void ApplyWorkdirProxy() {
 		QFile::remove(cWorkingDir() + u"logs/proxy_debug.txt"_q);
 	}
 	const auto proxyObj = contract.value("proxy").toObject();
-	const auto tokenObj = contract.value("token").toObject();
-	const auto nonce = tokenObj.value("nonce").toString();
-	const auto ts = static_cast<qint64>(tokenObj.value("ts").toDouble());
-	const auto sig = tokenObj.value("sig").toString().toUtf8();
-	WDLog(u"token: nonce_len=%1 ts=%2 sig_len=%3"_q
-		.arg(nonce.size()).arg(ts).arg(sig.size()));
-	if (nonce.isEmpty() || !ts || sig.isEmpty()) {
-		WDLog(u"exit: нет token — тест-режим, автопрокси недоступен"_q);
-		return;
-	}
-	// окно свежести: ±10 минут
-	const auto now = QDateTime::currentSecsSinceEpoch();
-	WDLog(u"freshness: now=%1 ts=%2 delta=%3"_q.arg(now).arg(ts).arg(qAbs(now - ts)));
-	if (qAbs(now - ts) > 600) {
-		WDLog(u"exit: токен старше 600 сек"_q);
-		return;
-	}
 	const auto scheme = proxyObj.value("type").toString();
 	const auto host = proxyObj.value("host").toString();
 	const auto port = proxyObj.value("port").toInt();
@@ -276,29 +259,44 @@ void ApplyWorkdirProxy() {
 		WDLog(u"exit: пустой host/port"_q);
 		return;
 	}
-	// сообщение, которое подписал сервер (тот же формат, что у менеджера)
-	const auto message = host.toUtf8()
-		+ '|' + QByteArray::number(port)
-		+ '|' + user.toUtf8()
-		+ '|' + nonce.toUtf8()
-		+ '|' + QByteArray::number(ts);
-	WDLog(u"message: '%1'"_q.arg(QString::fromUtf8(message)));
-	if (!VerifyLaunchSignature(message, sig)) {
-		WDLog(u"exit: ПОДПИСЬ НЕ СОШЛАСЬ"_q);
-		return; // подпись не сошлась — proxy-фича недоступна
+	proxy.user = user;
+	proxy.password = pass;
+
+	// Подпись токена — лицензионный гейт (Gated). ПРОКСИ и прокси вебвью —
+	// безопасность, а не фича лицензии: применяем их и при протухшем/битом
+	// токене, иначе рестарт клиента мимо менеджера уходил в сеть напрямую
+	// (fail-open, найдено аудитом 18.10). Без подписи Gated НЕ включается:
+	// витрина, роутинг миниапов и блокировки звонков остаются лицензионными.
+	const auto tokenObj = contract.value("token").toObject();
+	const auto nonce = tokenObj.value("nonce").toString();
+	const auto ts = static_cast<qint64>(tokenObj.value("ts").toDouble());
+	const auto sig = tokenObj.value("sig").toString().toUtf8();
+	WDLog(u"token: nonce_len=%1 ts=%2 sig_len=%3"_q
+		.arg(nonce.size()).arg(ts).arg(sig.size()));
+	auto sigOk = false;
+	if (nonce.isEmpty() || !ts || sig.isEmpty()) {
+		WDLog(u"токен отсутствует — подписной гейт не проверяется"_q);
+	} else {
+		// окно свежести: ±10 минут
+		const auto now = QDateTime::currentSecsSinceEpoch();
+		WDLog(u"freshness: now=%1 ts=%2 delta=%3"_q.arg(now).arg(ts).arg(qAbs(now - ts)));
+		if (qAbs(now - ts) > 600) {
+			WDLog(u"токен старше 600 сек"_q);
+		} else {
+			// сообщение, которое подписал сервер (тот же формат, что у менеджера)
+			const auto message = host.toUtf8()
+				+ '|' + QByteArray::number(port)
+				+ '|' + user.toUtf8()
+				+ '|' + nonce.toUtf8()
+				+ '|' + QByteArray::number(ts);
+			WDLog(u"message: '%1'"_q.arg(QString::fromUtf8(message)));
+			sigOk = VerifyLaunchSignature(message, sig);
+			if (!sigOk) {
+				WDLog(u"ПОДПИСЬ НЕ СОШЛАСЬ"_q);
+			}
+		}
 	}
-	WDLog(u"подпись OK → InitProfile"_q);
-	// подпись валидна: можно подхватить профиль аккаунта из контракта
-	Workdir::InitProfile(contract);
-	// Витрина «Это устройство»: список сессий рисует локальную настройку
-	// (api_authorizations.cpp:58-60, hash==0), а на провода уходит workdir-модель.
-	// Синхронизируем: без подписи — сбрасываем, чтобы обычный запуск вёл себя
-	// байт-в-байт как раньше (иначе залипнет модель прошлого запуска).
-	if (Workdir::Gated() && !Workdir::DeviceModel().isEmpty()) {
-		Core::App().settings().setCustomDeviceModel(Workdir::DeviceModel());
-	} else if (!Workdir::Gated()) {
-		Core::App().settings().setCustomDeviceModel(QString());
-	}
+
 	// §11.5: WebView2 всего процесса (мини-приложения, локация, платежи)
 	// идёт через локальный веб-форвардер аккаунта, т.е. через прокси
 	// аккаунта. Аргументы читает ПАТЧ lib_webview (lib_webview_proxy.patch,
@@ -307,23 +305,19 @@ void ApplyWorkdirProxy() {
 	// задан явно, поэтому используется своя переменная WEBVIEW2_TG_PROXY.
 	// ApplyWorkdirProxy выполняется до старта аккаунтов, окружений ещё нет.
 	// WebRTC в мини-аппах принудительно через прокси (иначе STUN светит
-	// реальный IP в обход SOCKS5).
-	if (!Workdir::WebProxy().isEmpty()) {
+	// реальный IP в обход SOCKS5). Ставим НЕ только под подписью: в не-Gated
+	// режиме миниапы открываются в WebView2 и без прокси светили бы IP.
+	const auto webProxy = contract.value("web_proxy").toString();
+	if (!webProxy.isEmpty()) {
 		// НЕ склеивать три элемента через QStringBuilder с char16_t-литералом:
 		// Qt5 не имеет QConcatenable для const char16_t* (грабли №22)
-		const auto args = (u"--proxy-server="_q + Workdir::WebProxy())
+		const auto args = (u"--proxy-server="_q + webProxy)
 			+ QString::fromWCharArray(
 				L" --force-webrtc-ip-handling-policy=disable_non_proxied_udp");
 		qputenv("WEBVIEW2_TG_PROXY", args.toUtf8());
-		WDLog(u"webview proxy: %1"_q.arg(Workdir::WebProxy()));
+		WDLog(u"webview proxy: %1"_q.arg(webProxy));
 	}
-	// Порт v2: уведомления фермы по умолчанию выключены (окно за окном)
-	Core::App().settings().setDesktopNotify(false);
-	// §11.8: в Gated-режиме — без трея: закрытие окна всегда завершает
-	// процесс, менеджер останавливает мягко без форс-килла.
-	Core::App().settings().setWorkMode(Core::Settings::WorkMode::WindowOnly);
-	proxy.user = user;
-	proxy.password = pass;
+	// Прокси аккаунта — в настройки клиента и персистим (переживёт рестарт).
 	auto &settingsProxy = Core::App().settings().proxy();
 	WDLog(u"settings текущее состояние: %1"_q.arg(int(settingsProxy.settings())));
 	// К3: в Gated-режиме НЕ выходим на Enabled — прокси управляется менеджером,
@@ -337,6 +331,31 @@ void ApplyWorkdirProxy() {
 	settingsProxy.setSettings(MTP::ProxyData::Settings::Enabled);
 	Local::writeSettings(); // персистим сразу, чтобы пережило рестарт
 	WDLog(u"=== ПРОКСИ ПРИМЕНЁН ==="_q);
+
+	if (!sigOk) {
+		// Fail-closed по сети, гейт по лицензии: трафик уходит через прокси
+		// аккаунта, но Gated-фичи без подписи не включаются.
+		WDLog(u"exit: без валидной подписи Gated выключен (лицензия), "
+			"трафик остаётся через прокси аккаунта"_q);
+		return;
+	}
+	WDLog(u"подпись OK → InitProfile"_q);
+	// подпись валидна: можно подхватить профиль аккаунта из контракта
+	Workdir::InitProfile(contract);
+	// Витрина «Это устройство»: список сессий рисует локальную настройку
+	// (api_authorizations.cpp:58-60, hash==0), а на провода уходит workdir-модель.
+	// Синхронизируем: без подписи — сбрасываем, чтобы обычный запуск вёл себя
+	// байт-в-байт как раньше (иначе залипнет модель прошлого запуска).
+	if (Workdir::Gated() && !Workdir::DeviceModel().isEmpty()) {
+		Core::App().settings().setCustomDeviceModel(Workdir::DeviceModel());
+	} else if (!Workdir::Gated()) {
+		Core::App().settings().setCustomDeviceModel(QString());
+	}
+	// Порт v2: уведомления фермы по умолчанию выключены (окно за окном)
+	Core::App().settings().setDesktopNotify(false);
+	// §11.8: в Gated-режиме — без трея: закрытие окна всегда завершает
+	// процесс, менеджер останавливает мягко без форс-килла.
+	Core::App().settings().setWorkMode(Core::Settings::WorkMode::WindowOnly);
 }
 
 } // namespace
